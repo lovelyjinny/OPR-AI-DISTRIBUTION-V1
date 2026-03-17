@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPR AI 자동분배 시스템</title>
+<meta property="og:title" content="OPR AI 자동분배 시스템">
+<meta property="og:description" content="초도/반응 자동분배 · SAP STO 업로드용 엑셀 생성">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F2F3F5;
+  --surface: #FFFFFF;
+  --surface2: #F7F8FA;
+  --border: #E5E8ED;
+  --border2: #D1D5DB;
+  --text: #191919;
+  --text2: #4B5563;
+  --text3: #9CA3AF;
+  --accent: #FEE500;
+  --accent-dark: #F5D800;
+  --accent-text: #191919;
+  --ok: #00B74A;
+  --ok-bg: #E8F9EF;
+  --warn: #F59E0B;
+  --warn-bg: #FEF3C7;
+  --err: #EF4444;
+  --err-bg: #FEF2F2;
+  --blue: #3B82F6;
+  --blue-bg: #EFF6FF;
+  --purple: #8B5CF6;
+  --purple-bg: #F5F3FF;
+  --navy: #1E2B4A;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+  --sidebar-w: 200px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', sans-serif; min-height: 100vh; font-size: 14px; -webkit-font-smoothing: antialiased; }
+
+/* ── 레이아웃 ── */
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--navy); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+.main { flex: 1; margin-left: var(--sidebar-w); overflow-y: auto; min-height: 100vh; }
+
+/* ── 사이드바 ── */
+.logo { padding: 24px 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.logo-tag { font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+.logo-title { font-size: 15px; font-weight: 800; color: #FFFFFF; line-height: 1.3; letter-spacing: -0.02em; }
+.logo-sub { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+.nav { padding: 12px 10px; flex: 1; }
+.nav-section { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.3); padding: 12px 8px 4px; letter-spacing: 0.1em; text-transform: uppercase; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-size: 13px; color: rgba(255,255,255,0.55); cursor: pointer; border-radius: var(--radius-sm); transition: all 0.15s; margin-bottom: 2px; font-weight: 500; position: relative; }
+.nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.nav-item.active { color: var(--accent-text); background: var(--accent); font-weight: 700; }
+.nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+.nav-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 6px 4px; }
+
+/* ── 패널 ── */
+.panel { display: none; padding: 28px 28px 40px; max-width: 1000px; }
+.panel.active { display: block; animation: fadeUp 0.2s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.page-header { margin-bottom: 24px; }
+.page-title { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.03em; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: var(--text3); }
+
+/* ── 카드 ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.card-title { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; }
+
+/* ── 날씨 배너 ── */
+.weather-banner { background: var(--navy); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 16px; }
+.w-temp { font-size: 30px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.w-up { color: #FF6B6B; }
+.w-down { color: #74C0FC; }
+.w-info { flex: 1; }
+.w-desc { font-size: 12px; color: rgba(255,255,255,0.6); }
+.w-tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.w-tag { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 700; }
+.tag-ss { background: rgba(239,68,68,0.2); color: #FCA5A5; }
+.tag-fw { background: rgba(59,130,246,0.2); color: #93C5FD; }
+.tag-day { background: rgba(16,185,129,0.2); color: #6EE7B7; }
+.tag-neu { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
+.tag-init { background: rgba(254,229,0,0.2); color: var(--accent); }
+.tag-react { background: rgba(139,92,246,0.2); color: #C4B5FD; }
+
+/* ── 업로드 그리드 ── */
+.upload-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+.upload-card { background: var(--surface); border: 2px dashed var(--border2); border-radius: var(--radius); padding: 20px 16px; cursor: pointer; transition: all 0.2s; min-height: 120px; }
+.upload-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.upload-card.loaded { border-style: solid; border-color: var(--ok); background: var(--ok-bg) !important; }
+.upload-card.loaded .upload-icon { filter: grayscale(0); }
+.upload-card-1 { background: #EEF4FF; border-color: #BFCFFF; }
+.upload-card-1:hover { background: #E0ECFF; border-color: #3B82F6; }
+.upload-card-2 { background: #FFF4EC; border-color: #FFCFA0; }
+.upload-card-2:hover { background: #FFE9D5; border-color: #F97316; }
+.upload-card-3 { background: #EDFFF5; border-color: #A7F0C4; }
+.upload-card-3:hover { background: #D6F9E8; border-color: #10B981; }
+.upload-card-4 { background: #FFF8E1; border-color: #FFE082; }
+.upload-card-4:hover { background: #FFF0B3; border-color: #F59E0B; }
+.upload-icon { font-size: 24px; margin-bottom: 8px; }
+.upload-num { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+.upload-num .badge-req { background: var(--navy); color: #fff; font-size: 9px; padding: 1px 6px; border-radius: 20px; }
+.upload-num .badge-opt { background: var(--warn-bg); color: var(--warn); font-size: 9px; padding: 1px 6px; border-radius: 20px; }
+.upload-name { font-size: 14px; color: var(--text); font-weight: 700; margin-bottom: 5px; }
+.upload-status { font-size: 11px; color: var(--text3); line-height: 1.4; }
+.upload-card.loaded .upload-status { color: var(--ok); font-weight: 600; }
+
+/* ── 버튼 ── */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: all 0.18s; font-family: inherit; letter-spacing: -0.01em; }
+.btn-primary { background: var(--accent); color: var(--accent-text); }
+.btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(254,229,0,0.4); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-success { background: var(--ok); color: #fff; }
+.btn-success:hover { background: #009A3D; transform: translateY(-1px); }
+.btn-outline { background: transparent; color: var(--text2); border: 1.5px solid var(--border2); }
+.btn-outline:hover { background: var(--surface2); border-color: var(--text3); }
+.btn-navy { background: var(--navy); color: #fff; }
+.btn-navy:hover { background: #263560; }
+.btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 6px; }
+.btn-danger { background: transparent; color: var(--err); border: 1.5px solid var(--border2); }
+.btn-danger:hover { background: var(--err-bg); border-color: var(--err); }
+
+/* ── 진행 박스 ── */
+.progress-box { background: var(--navy); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 12px; display: none; }
+.progress-box.show { display: block; }
+.progress-bar-wrap { background: rgba(255,255,255,0.1); border-radius: 4px; height: 3px; margin-bottom: 14px; }
+.progress-bar { height: 3px; border-radius: 4px; background: var(--accent); transition: width 0.4s; width: 0%; }
+.log-lines { font-family: 'Courier New', monospace; font-size: 12px; max-height: 140px; overflow-y: auto; line-height: 1.8; }
+.log-ok { color: #6EE7B7; }
+.log-info { color: rgba(255,255,255,0.4); }
+.log-warn { color: #FCD34D; }
+.log-err { color: #FCA5A5; }
+
+/* ── 통계 카드 ── */
+.stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; box-shadow: var(--shadow); }
+.stat-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; font-weight: 600; }
+.stat-val { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.stat-val.blue { color: var(--blue); }
+.stat-val.green { color: var(--ok); }
+.stat-val.amber { color: var(--warn); }
+.stat-val.purple { color: var(--purple); }
+.stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+/* ── 테이블 ── */
+.table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead tr { background: var(--surface2); }
+th { color: var(--text3); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--border); white-space: nowrap; }
+td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text2); }
+td:first-child { color: var(--text); font-weight: 500; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+.qty-input { width: 62px; text-align: center; border: 1.5px solid var(--border2); border-radius: 6px; padding: 5px 6px; font-size: 13px; background: var(--surface); color: var(--text); font-family: inherit; font-weight: 600; transition: all 0.15s; }
+.qty-input:focus { outline: none; border-color: var(--navy); background: var(--blue-bg); }
+.qty-input.modified { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+
+/* ── 배지 ── */
+.badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 700; white-space: nowrap; }
+.badge-init { background: var(--warn-bg); color: var(--warn); }
+.badge-react { background: var(--purple-bg); color: var(--purple); }
+.badge-ss { background: var(--err-bg); color: var(--err); }
+.badge-fw { background: var(--blue-bg); color: var(--blue); }
+.badge-ok { background: var(--ok-bg); color: var(--ok); }
+.badge-gray { background: var(--surface2); color: var(--text2); }
+
+/* ── 설정 ── */
+.setting-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 14px; font-weight: 500; color: var(--text); }
+.setting-desc { font-size: 12px; color: var(--text3); margin-top: 2px; }
+input[type=number], input[type=text] { background: var(--surface2); border: 1.5px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 13px; width: 120px; font-family: inherit; transition: all 0.15s; }
+input[type=number]:focus, input[type=text]:focus { outline: none; border-color: var(--navy); background: #fff; }
+select { background: var(--surface2); border: 1.5px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 13px; font-family: inherit; cursor: pointer; }
+
+/* ── 진열량 ── */
+.display-table input { width: 65px; text-align: center; }
+.display-table td { padding: 7px 10px; }
+
+/* ── 매장 관리 ── */
+.store-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 6px; display: block; }
+.form-input { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); color: var(--text); border-radius: 6px; padding: 9px 12px; font-size: 13px; font-family: inherit; transition: all 0.15s; }
+.form-input:focus { outline: none; border-color: var(--navy); background: #fff; }
+.preview-box { background: var(--surface2); border-radius: 8px; padding: 14px; margin-top: 8px; font-size: 12px; border: 1px solid var(--border); }
+.store-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid var(--border); transition: all 0.15s; }
+.store-item:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.store-badge { font-size: 11px; background: var(--blue-bg); color: var(--blue); padding: 3px 9px; border-radius: 20px; font-weight: 700; }
+.store-badge-new { background: var(--ok-bg); color: var(--ok); }
+
+/* ── 에러 박스 ── */
+.error-box { background: var(--err-bg); border: 1.5px solid #FECACA; border-radius: var(--radius-sm); padding: 12px 16px; color: var(--err); font-size: 13px; font-weight: 500; margin-bottom: 14px; display: none; }
+.error-box.show { display: block; }
+
+/* ── 빈 상태 ── */
+.empty-state { text-align: center; padding: 70px 20px; }
+.empty-icon { font-size: 48px; margin-bottom: 14px; opacity: 0.3; }
+.empty-title { font-size: 16px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+.empty-sub { font-size: 13px; color: var(--text3); }
+
+/* ── 케파 바 ── */
+.capa-bar-wrap { background: var(--surface2); border-radius: 4px; height: 6px; margin-top: 10px; overflow: hidden; }
+.capa-bar { height: 6px; border-radius: 4px; background: var(--ok); transition: width 0.6s; }
+.capa-bar.warn { background: var(--warn); }
+.capa-bar.over { background: var(--err); }
+
+/* ── 스피너 ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 16px; height: 16px; border: 2.5px solid rgba(25,25,25,0.2); border-top-color: var(--accent-text); border-radius: 50%; animation: spin 0.7s linear infinite; display: none; flex-shrink: 0; }
+.spinner.show { display: inline-block; }
+
+/* ── 섹션 구분선 ── */
+.section-divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* ── 모바일 탭 ── */
+.mobile-tab { display: none; }
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-bottom: 72px; }
+  .panel { padding: 18px 16px 32px; }
+  .upload-grid { grid-template-columns: 1fr 1fr; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .store-grid { grid-template-columns: 1fr; }
+  .page-title { font-size: 18px; }
+  .mobile-tab { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 200; box-shadow: 0 -2px 12px rgba(0,0,0,0.08); }
+  .mobile-tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 4px; font-size: 10px; color: var(--text3); cursor: pointer; gap: 3px; font-weight: 600; transition: color 0.15s; }
+  .mobile-tab-item.active { color: var(--navy); }
+  .mobile-tab-item .tab-icon { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- 사이드바 -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-tag">OPR · AI</div>
+    <div class="logo-title">자동분배<br>시스템</div>
+    <div class="logo-sub">직영점 10개 · MCH2 분배</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">분배</div>
+    <div class="nav-item active" id="nav-dist" onclick="showPanel('dist',this)">
+      <span class="nav-icon">⚡</span> 분배 실행
+    </div>
+    <div class="nav-item" id="nav-result" onclick="showPanel('result',this)">
+      <span class="nav-icon">📊</span> 분배 결과
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">관리</div>
+    <div class="nav-item" id="nav-stores" onclick="showPanel('stores',this)">
+      <span class="nav-icon">🏪</span> 매장 관리
+    </div>
+    <div class="nav-item" id="nav-display" onclick="showPanel('display',this)">
+      <span class="nav-icon">📐</span> 진열량 관리
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" id="nav-settings" onclick="showPanel('settings',this)">
+      <span class="nav-icon">⚙️</span> 설정
+    </div>
+  </nav>
+</div>
+
+<!-- 모바일 탭 -->
+<div class="mobile-tab">
+  <div class="mobile-tab-item active" onclick="showPanel('dist',this)"><span class="tab-icon">⚡</span>분배</div>
+  <div class="mobile-tab-item" onclick="showPanel('result',this)"><span class="tab-icon">📊</span>결과</div>
+  <div class="mobile-tab-item" onclick="showPanel('stores',this)"><span class="tab-icon">🏪</span>매장</div>
+  <div class="mobile-tab-item" onclick="showPanel('display',this)"><span class="tab-icon">📐</span>진열량</div>
+  <div class="mobile-tab-item" onclick="showPanel('settings',this)"><span class="tab-icon">⚙️</span>설정</div>
+</div>
+
+<!-- 메인 -->
+<div class="main">
+
+<!-- 분배 실행 패널 -->
+<div class="panel active" id="panel-dist">
+  <div class="page-header">
+    <div class="page-title">분배 실행</div>
+    <div class="page-sub">파일 3개를 업로드하고 분배를 실행하세요 <span style="color:var(--text3)">①②③ 필수</span></div>
+  </div>
+
+  <!-- 날씨 배너 -->
+  <div class="weather-banner">
+    <div id="w-loading" style="font-size:13px;color:rgba(255,255,255,0.5)">🌡 날씨 정보 불러오는 중...</div>
+    <div id="w-content" style="display:none;width:100%;align-items:center;gap:16px">
+      <div class="w-temp" id="w-temp">--°</div>
+      <div class="w-info">
+        <div class="w-desc" id="w-desc"></div>
+        <div class="w-tags" id="w-tags"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 업로드 카드 -->
+  <div class="upload-grid">
+    <div id="card-inv" class="upload-card upload-card-1" onclick="pickFile('inv')">
+      <input type="file" id="fi-inv" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this,'inv')">
+      <div class="upload-icon">📦</div>
+      <div class="upload-num">일재고분석 <span class="badge-req">필수</span></div>
+      <div class="upload-name" id="fn-inv">파일 선택</div>
+      <div class="upload-status" id="fs-inv">매장별 현재 보유재고</div>
+    </div>
+    <div id="card-sales" class="upload-card upload-card-2" onclick="pickFile('sales')">
+      <input type="file" id="fi-sales" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this,'sales')">
+      <div class="upload-icon">📈</div>
+      <div class="upload-num">매출상세분석 <span class="badge-req">필수</span></div>
+      <div class="upload-name" id="fn-sales">파일 선택</div>
+      <div class="upload-status" id="fs-sales">매장별 월별 판매수량</div>
+    </div>
+    <div id="card-avail" class="upload-card upload-card-3" onclick="pickFile('avail')">
+      <input type="file" id="fi-avail" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this,'avail')">
+      <div class="upload-icon">🏭</div>
+      <div class="upload-num">가용재고 <span class="badge-req">필수</span></div>
+      <div class="upload-name" id="fn-avail">파일 선택</div>
+      <div class="upload-status" id="fs-avail">물류창고 출고 가능 수량</div>
+    </div>
+
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn btn-primary" id="run-btn" onclick="runDistribution()" disabled>
+      <div class="spinner" id="spinner"></div>
+      <span id="btn-text">분배 실행</span>
+    </button>
+    <div style="font-size:13px;color:var(--text3)" id="ready-hint">① 일재고분석 파일을 업로드하세요</div>
+  </div>
+
+  <div class="progress-box" id="progress-box">
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+    <div class="log-lines" id="log-lines"></div>
+  </div>
+</div>
+
+<!-- 분배 결과 패널 -->
+<div class="panel" id="panel-result">
+  <div class="page-header">
+    <div class="page-title">분배 결과</div>
+    <div class="page-sub">수량을 수동 조정한 후 엑셀로 다운로드하세요</div>
+  </div>
+
+  <div class="empty-state" id="no-result">
+    <div class="empty-icon">📭</div>
+    <div class="empty-title">아직 분배를 실행하지 않았습니다</div>
+    <div class="empty-sub">분배 실행 탭에서 파일을 업로드하고 실행하세요</div>
+  </div>
+
+  <div id="result-box" style="display:none">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">총 배정 건수</div>
+        <div class="stat-val blue" id="r-count">-</div>
+        <div class="stat-sub">스타일 × 매장</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">총 출고 수량</div>
+        <div class="stat-val green" id="r-qty">-</div>
+        <div class="stat-sub">개 / 가용 <span id="r-avail-total">-</span>개</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">초도 분배</div>
+        <div class="stat-val amber" id="r-init">-</div>
+        <div class="stat-sub">건</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">반응 분배</div>
+        <div class="stat-val purple" id="r-react">-</div>
+        <div class="stat-sub">건</div>
+      </div>
+    </div>
+
+    <!-- 케파 -->
+    <div class="card" id="capa-card" style="display:none">
+      <div class="card-title">물류 출고 케파</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+        <span>총 출고 <b id="capa-used">-</b>개 / 최대 <b id="capa-max">-</b>개</span>
+        <span id="capa-pct" style="font-weight:700;font-size:15px"></span>
+      </div>
+      <div class="capa-bar-wrap"><div class="capa-bar" id="capa-bar"></div></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-success btn-sm" onclick="downloadExcel()">⬇ 엑셀 다운로드</button>
+      <button class="btn btn-outline btn-sm" onclick="showPanel('dist',null)">↩ 다시 실행</button>
+      <span style="font-size:12px;color:var(--text3);margin-left:4px">수량 셀 클릭 → 직접 수정 가능</span>
+    </div>
+
+    <!-- 매장별 현황 -->
+    <div class="card">
+      <div class="card-title">매장별 분배 현황</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>매장</th><th>플랜트</th><th>여성</th><th>남성</th><th>아동</th><th>리빙</th><th>캐릭터</th><th>골드(여)</th><th>골드(남)</th><th>합계</th></tr></thead>
+          <tbody id="store-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 상세 내역 -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin-bottom:0">상세 분배 내역 <span style="font-size:11px;color:var(--text3);font-weight:400;text-transform:none">(수량 직접 수정 가능)</span></div>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="search-result" placeholder="상품코드 / 매장 검색" style="width:160px;font-size:12px;padding:6px 10px" oninput="filterResult()">
+          <select id="filter-type" onchange="filterResult()" style="font-size:12px;padding:6px 10px">
+            <option value="">전체</option>
+            <option value="init">초도</option>
+            <option value="react">반응</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>구분</th><th>상품코드</th><th>상품명</th><th>카테고리</th><th>시즌</th><th>매장</th><th>수량</th><th>가용재고</th><th>적정재고</th><th>현재재고</th></tr></thead>
+          <tbody id="detail-table"></tbody>
+        </table>
+      </div>
+      <div id="detail-nav" style="display:flex;gap:8px;align-items:center;margin-top:12px;justify-content:flex-end"></div>
+    </div>
+
+    <!-- 유사스타일 -->
+    <div class="card" id="similar-card" style="display:none">
+      <div class="card-title">유사스타일 대체 내역</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>원본 스타일</th><th>대체 스타일</th><th>카테고리</th><th>매칭 조건</th><th>이유</th></tr></thead>
+          <tbody id="similar-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 매장 관리 패널 -->
+<div class="panel" id="panel-stores">
+  <div class="page-header">
+    <div class="page-title">매장 관리</div>
+    <div class="page-sub">직영점 현황 및 신규 매장 등록</div>
+  </div>
+  <div class="card">
+    <div class="card-title">등록된 매장</div>
+    <div id="store-list"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">신규 매장 등록</div>
+    <div class="store-grid">
+      <div>
+        <div class="form-group"><label class="form-label">매장명</label><input class="form-input" id="ns-name" placeholder="예: 홍대점"></div>
+        <div class="form-group"><label class="form-label">플랜트 번호</label><input class="form-input" id="ns-plant" placeholder="예: 8250"></div>
+        <div class="form-group"><label class="form-label">주간 매출 목표액 (원)</label><input class="form-input" id="ns-target" placeholder="예: 15000000" type="number"></div>
+      </div>
+      <div>
+        <div class="form-group">
+          <label class="form-label">카테고리별 평수</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label class="form-label" style="font-size:11px">여성(평)</label><input class="form-input" id="ns-w" type="number" placeholder="0" oninput="calcNewStore()"></div>
+            <div><label class="form-label" style="font-size:11px">남성(평)</label><input class="form-input" id="ns-m" type="number" placeholder="0" oninput="calcNewStore()"></div>
+            <div><label class="form-label" style="font-size:11px">아동(평)</label><input class="form-input" id="ns-k" type="number" placeholder="0" oninput="calcNewStore()"></div>
+            <div><label class="form-label" style="font-size:11px">기타(평)</label><input class="form-input" id="ns-etc" type="number" placeholder="0" oninput="calcNewStore()"></div>
+          </div>
+        </div>
+        <div class="preview-box" id="ns-preview" style="display:none">
+          <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px">카테고리별 목표 배분</div>
+          <div id="ns-preview-content"></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-navy btn-sm" onclick="addNewStore()" style="margin-top:12px">매장 등록</button>
+  </div>
+</div>
+
+<!-- 진열량 관리 패널 -->
+<div class="panel" id="panel-display">
+  <div class="page-header">
+    <div class="page-title">진열량 관리</div>
+    <div class="page-sub">직접 입력하거나 적정재고 파일로 불러오세요. 저장하면 다음 분배부터 자동 적용됩니다.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">매장별 카테고리 진열량</div>
+    <div class="table-wrap display-table">
+      <table>
+        <thead><tr><th>매장</th><th>여성</th><th>남성</th><th>아동</th><th>리빙</th><th>캐릭터</th></tr></thead>
+        <tbody id="display-table-body"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-navy btn-sm" onclick="saveDisplayQty()">💾 저장</button>
+      <button class="btn btn-outline btn-sm" onclick="renderDisplayTable()">초기화</button>
+      <div style="width:1px;height:24px;background:var(--border);margin:0 4px"></div>
+      <input type="file" id="fi-quota-direct" accept=".xlsx,.xls" style="display:none" onchange="loadQuotaFile(this)">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('fi-quota-direct').click()">📂 적정재고 파일로 불러오기</button>
+      <span id="quota-load-status" style="font-size:12px;color:var(--text3)"></span>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 패널 -->
+<div class="panel" id="panel-settings">
+  <div class="page-header">
+    <div class="page-title">설정</div>
+    <div class="page-sub">분배 로직 파라미터를 조정합니다</div>
+  </div>
+  <div class="card">
+    <div class="card-title">분배 기준</div>
+    <div class="setting-row"><div><div class="setting-label">스타일당 기본 분배량</div><div class="setting-desc">초도/반응 모두 적용되는 기본 수량</div></div><input type="number" id="cfg-base" value="2" min="1" max="10"></div>
+    <div class="setting-row"><div><div class="setting-label">초도 분배 비율 (%)</div><div class="setting-desc">신상품 가용재고 중 초도로 내보낼 비율</div></div><input type="number" id="cfg-init-ratio" value="50" min="10" max="100"></div>
+
+    <div class="setting-row"><div><div class="setting-label">유사스타일 가격 허용 범위 (%)</div><div class="setting-desc">최초판매가 및 현판가 ±% 이내 스타일만 인정</div></div><input type="number" id="cfg-price" value="30" min="5" max="80"></div>
+    <div class="setting-row"><div><div class="setting-label">소량 재고 기준 (개)</div><div class="setting-desc">이 수량 미만이면 소량 처리</div></div><input type="number" id="cfg-small" value="20" min="5" max="100"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">물류 출고 케파</div>
+    <div class="setting-row"><div><div class="setting-label">스타일 최소 가용수량</div><div class="setting-desc">이 수량 미만인 스타일은 분배 제외 (기본 5개)</div></div><input type="number" id="cfg-min-avail" value="5" min="1" max="50"></div>
+    <div class="setting-row"><div><div class="setting-label">1일 최대 출고 수량</div><div class="setting-desc">0이면 제한 없음. 초도 우선 → 반응 순으로 적용</div></div><input type="number" id="cfg-capa" value="0" min="0"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">요일별 가중치 (2025년 실적 기반)</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:4px">
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">월</div><input type="number" id="dow-0" value="0.64" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">화</div><input type="number" id="dow-1" value="0.70" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">수</div><input type="number" id="dow-2" value="1.09" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">목</div><input type="number" id="dow-3" value="0.88" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">금</div><input type="number" id="dow-4" value="1.00" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">토</div><input type="number" id="dow-5" value="1.46" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">일</div><input type="number" id="dow-6" value="1.22" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
+    </div>
+  </div>
+  <button class="btn btn-navy btn-sm" onclick="alert('설정이 저장되었습니다')">설정 저장</button>
+</div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── pickFile ───────────────────────────────────────────────────────────
+function pickFile(key) {
+  var el = document.getElementById('fi-' + key);
+  if (el) el.click();
+}
+
+// ── 상수 ──────────────────────────────────────────────────────────────
+const MCH2_CAT = {'1W':'여성','1M':'남성','1K':'아동','1L':'리빙','1C':'캐릭터','2W':'골드(여)','2M':'골드(남)'};
+const MCH2_QUOTA_CAT = {'1W':'여성','1M':'남성','1K':'아동','1L':'여성','1C':'아동','2W':'여성','2M':'남성'};
+const SEASON_MONTH_MAP = {'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'T':10,'N':11,'D':12};
+const CAT_LABELS = ['여성','남성','리빙','캐릭터','골드(여)','골드(남)']; // 아동 분배 제외
+
+let STORES = {
+  '7215':{name:'천호2점',cats:CAT_LABELS},
+  '8227':{name:'강서점',cats:CAT_LABELS},
+  '8224':{name:'송파점',cats:CAT_LABELS},
+  '8206':{name:'강남점',cats:['여성','남성','골드(여)','골드(남)']},
+  '7209':{name:'분당점',cats:['여성','남성','골드(여)','골드(남)']},
+  '7217':{name:'불광점',cats:CAT_LABELS},
+  '8237':{name:'수원터미널점',cats:CAT_LABELS},
+  '8208':{name:'동수원점',cats:CAT_LABELS},
+  '8215':{name:'산본점',cats:CAT_LABELS},
+  '8212':{name:'순천점',cats:CAT_LABELS},
+};
+
+const files = {inv:null, sales:null, avail:null, quota:null};
+let resultData = null;
+let weatherCtx = null;
+let displayQty = {};
+let customStores = [];
+
+// ── 패널 전환 ──────────────────────────────────────────────────────────
+function showPanel(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .mobile-tab-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+  const sideNav = document.getElementById('nav-' + id);
+  if (sideNav) sideNav.classList.add('active');
+  if (id === 'stores') renderStoreList();
+  if (id === 'display') renderDisplayTable();
+  if (id === 'result' && resultData) renderResult();
+}
+
+// ── 파일 핸들 ──────────────────────────────────────────────────────────
+function handleFile(input, key) {
+  const file = input.files[0]; if (!file) return;
+  files[key] = file;
+  document.getElementById('fn-' + key).textContent = file.name;
+  const card = document.getElementById('card-' + key);
+  card.classList.add('loaded');
+  document.getElementById('fs-' + key).textContent = '✓ 준비 완료';
+  checkReady();
+}
+function checkReady() {
+  const ready = files.inv && files.sales && files.avail;
+  document.getElementById('run-btn').disabled = !ready;
+  let hint = '';
+  if (!files.inv) hint = '① 일재고분석 파일을 업로드하세요';
+  else if (!files.sales) hint = '② 매출상세분석 파일을 업로드하세요';
+  else if (!files.avail) hint = '③ 가용재고 파일을 업로드하세요';
+  else hint = '✓ 분배 실행 준비 완료';
+  document.getElementById('ready-hint').textContent = hint;
+}
+
+// ── XLSX 읽기 ──────────────────────────────────────────────────────────
+function readXLSX(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(XLSX.read(e.target.result, {type:'array', cellDates:true}));
+    r.onerror = rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+function sheetToRows(ws) {
+  return XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
+}
+
+// ── 날씨 API ──────────────────────────────────────────────────────────
+async function fetchWeather() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current=temperature_2m&daily=temperature_2m_max,temperature_2m_min&past_days=2&forecast_days=3&timezone=Asia%2FSeoul');
+    const d = await r.json();
+    const cur = d.current.temperature_2m;
+    const mx = d.daily.temperature_2m_max, mn = d.daily.temperature_2m_min;
+    const todayAvg = (mx[2]+mn[2])/2, yestAvg = (mx[1]+mn[1])/2;
+    const trend = todayAvg - yestAvg;
+    const foreAvg = ((mx[3]+mn[3])/2+(mx[4]+mn[4])/2)/2;
+    return {cur, trend, foreAvg};
+  } catch(e) { return null; }
+}
+function weatherMult(st, w) {
+  if (!w) return 1.0;
+  const s = w.cur*0.5 + w.trend*2 + (w.foreAvg-w.cur)*0.3;
+  if (st==='SS') { if(s>8)return 1.4; if(s>3)return 1.2; if(s>-3)return 1.0; if(s>-8)return 0.8; return 0.6; }
+  if (st==='FW') { if(s<-8)return 1.4; if(s<-3)return 1.2; if(s<3)return 1.0; if(s<8)return 0.8; return 0.6; }
+  return 1.0;
+}
+function seasonMonthPriority(smCode) {
+  const t = SEASON_MONTH_MAP[smCode];
+  if (!t) return {mult:1.0, label:'연중/간절기'};
+  const cur = new Date().getMonth()+1;
+  let diff = t - cur;
+  if (diff>6) diff-=12; if (diff<-6) diff+=12;
+  if (diff===1) return {mult:1.5, label:t+'월(출고필수)'};
+  if (diff===0) return {mult:1.2, label:t+'월(이번달)'};
+  if (diff>1&&diff<=3) return {mult:1.0, label:t+'월(준비)'};
+  if (diff>3) return {mult:0.5, label:t+'월(보류)'};
+  return {mult:1.3, label:t+'월(긴급소진)'};
+}
+function getSeasonType(c) {
+  c = String(c||'');
+  if (c.includes('0001')||c.includes('SS')) return 'SS';
+  if (c.includes('0002')||c.includes('FW')) return 'FW';
+  return 'ALL';
+}
+function getDowMult() {
+  const dow = new Date().getDay();
+  const idx = dow===0 ? 6 : dow-1;
+  return parseFloat(document.getElementById('dow-'+idx).value)||1.0;
+}
+function extractPlant(s) {
+  const m = s.match(/\/(\d{4})$/);
+  return m ? m[1] : null;
+}
+
+// ── 파싱: 일재고분석 ──────────────────────────────────────────────────
+function parseInventory(wb) {
+  const ws = wb.Sheets['일재고분석'] || wb.Sheets[wb.SheetNames[0]];
+  const rows = sheetToRows(ws);
+  let hdr = -1;
+  for (let i=0;i<rows.length;i++) {
+    if (rows[i]&&rows[i].some(v=>String(v||'').includes('MCH2'))) {hdr=i; break;}
+  }
+  if (hdr<0) return {};
+  const h = rows[hdr];
+  const ci = k => h.findIndex(v=>String(v||'').includes(k));
+  const iStore=ci('지점'), iMch2=ci('MCH2'), iStyle=ci('스타일코드');
+  const iSeason=ci('계절연도'), iSmMonth=ci('계절월');
+  // 재고량은 MCH2 헤더 위 행에서 찾기 (헤더행에 없는 경우)
+  let iQty = ci('재고량');
+  if (iQty < 0) {
+    for (let ri=Math.max(0,hdr-3); ri<hdr; ri++) {
+      const rh=rows[ri]; if(!rh) continue;
+      for (let j=0;j<rh.length;j++) {
+        if (rh[j] && String(rh[j]).trim()==='재고량') { iQty=j; break; }
+      }
+      if (iQty>=0) break;
+    }
+  }
+  const iSize=ci('Size'), iColor=ci('컬러');
+
+  // 헤더 위 행에서 최초판매가, 현판가, 이동평균가 컬럼 찾기
+  let iInitPrice=-1, iCurrentPrice=-1, iAvgPrice=-1;
+  for (let ri=Math.max(0,hdr-3); ri<=hdr; ri++) {
+    const rh = rows[ri]; if (!rh) continue;
+    for (let j=0;j<rh.length;j++) {
+      const v = String(rh[j]||'');
+      if (v.includes('최초판매가')) iInitPrice = j;
+      if (v.includes('현판가')) iCurrentPrice = j;
+      if (v.includes('이동평균가')) iAvgPrice = j;
+    }
+  }
+  // 이동평균가가 헤더 행에 있는 경우도 확인
+  if (iAvgPrice < 0) iAvgPrice = ci('이동평균가');
+
+  const inv = {};
+  for (let i=hdr+1;i<rows.length;i++) {
+    const r=rows[i]; if(!r||!r[iStyle]) continue;
+    const style=String(r[iStyle]).trim();
+    const storeFull=String(r[iStore]||'').trim();
+    const qty=parseFloat(r[iQty])||0;
+    const mch2=String(r[iMch2]||'').trim();
+    const smCode=String(r[iSmMonth]||'').trim();
+    const seasonCode=String(r[iSeason]||'').trim();
+    const sizeVal=iSize>=0?String(r[iSize]||'').trim():'';
+    const colorVal=iColor>=0?String(r[iColor]||'').trim():'';
+
+    // 단가 계산: 재고액 ÷ 재고량
+    const avgPrice = iAvgPrice>=0 ? (parseFloat(r[iAvgPrice])||0) : 0;
+    const initPriceAmt = iInitPrice>=0 ? (parseFloat(r[iInitPrice])||0) : 0;
+    const curPriceAmt  = iCurrentPrice>=0 ? (parseFloat(r[iCurrentPrice])||0) : 0;
+    const initPrice = (qty>0 && initPriceAmt>0) ? initPriceAmt/qty : avgPrice;
+    const curPrice  = (qty>0 && curPriceAmt>0)  ? curPriceAmt/qty  : avgPrice;
+
+    if (!inv[style]) inv[style]={
+      name:String(r[iStyle+1]||'').trim(),
+      mch2, cat:MCH2_CAT[mch2]||mch2,
+      season:getSeasonType(seasonCode),
+      season_year:seasonCode,
+      season_month:smCode,
+      avg_price: avgPrice,
+      init_price: initPrice,
+      cur_price: curPrice,
+      size:sizeVal, color:colorVal,
+      total_qty:0, store_qty:{},
+    };
+    // 단가 누적 평균 업데이트
+    if (qty > 0) {
+      const prevQty = inv[style].total_qty;
+      const totalQty = prevQty + qty;
+      if (initPriceAmt > 0) inv[style].init_price = ((inv[style].init_price * prevQty) + initPrice * qty) / totalQty;
+      if (curPriceAmt > 0)  inv[style].cur_price  = ((inv[style].cur_price  * prevQty) + curPrice  * qty) / totalQty;
+    }
+    inv[style].total_qty += qty;
+    const plant = extractPlant(storeFull);
+    if (plant) inv[style].store_qty[plant]=(inv[style].store_qty[plant]||0)+qty;
+  }
+  return inv;
+}
+
+// ── 파싱: 매출상세분석 ────────────────────────────────────────────────
+function parseSales(wb) {
+  const ws = wb.Sheets['매출상세분석'] || wb.Sheets[wb.SheetNames[0]];
+  const rows = sheetToRows(ws);
+  let hdr=-1;
+  for (let i=0;i<rows.length;i++) {
+    if (rows[i]&&rows[i].some(v=>String(v||'').includes('MCH2'))) {hdr=i; break;}
+  }
+  if (hdr<0) return {sales:{}, recentSales:{}};
+  const h = rows[hdr];
+  const iStore = h.findIndex(v=>String(v||'').includes('지점'));
+  const iStyle = h.findIndex(v=>String(v||'').includes('스타일코드'));
+  // 판매수량 컬럼: MCH2 헤더 위 행들에서 찾기
+  let salesCols = [];
+  for (let i=Math.max(0,hdr-3); i<=hdr; i++) {
+    const row = rows[i]; if (!row) continue;
+    const cols = [];
+    for (let j=0;j<row.length;j++) {
+      if (String(row[j]||'').includes('판매수량')) cols.push(j);
+    }
+    if (cols.length > 0) { salesCols = cols; break; }
+  }
+  if (salesCols.length === 0) {
+    for (let j=0;j<h.length;j++) { if (String(h[j]||'').includes('판매수량')) salesCols.push(j); }
+  }
+  const recent = salesCols.length >= 3 ? salesCols.slice(-3) : salesCols;
+  const sales={}, recentSales={};
+  for (let i=hdr+1;i<rows.length;i++) {
+    const r=rows[i]; if(!r||!r[iStyle]) continue;
+    const style=String(r[iStyle]).trim();
+    const plant=extractPlant(String(r[iStore]||''));
+    if (!plant||!STORES[plant]) continue;
+    const total=salesCols.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
+    const rec=recent.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
+    if (!sales[style]) sales[style]={};
+    if (!recentSales[style]) recentSales[style]={};
+    sales[style][plant]=(sales[style][plant]||0)+total;
+    recentSales[style][plant]=(recentSales[style][plant]||0)+rec;
+  }
+  // 카테고리별 매장 집계 (반응 분배용)
+  const catStore4w = {}, catStore1m = {}, catStoreTotal = {};
+  const stylePlant4w = {};  // style->plant->4w sales
+  for (let i=hdr+1;i<rows.length;i++) {
+    const r=rows[i]; if(!r||!r[iStyle]) continue;
+    const style=String(r[iStyle]).trim();
+    const plant=extractPlant(String(r[iStore]||''));
+    if (!plant||!STORES[plant]) continue;
+    const mch2col = h.findIndex(v=>String(v||'').includes('MCH2'));
+    const mch2 = mch2col>=0 ? String(r[mch2col]||'').trim() : '';
+    const cat = MCH2_QUOTA_CAT[mch2] || MCH2_CAT[mch2] || '';
+    if (!cat) continue;
+    const recent9 = salesCols.length>=9 ? salesCols.slice(-9) : salesCols;
+    const q4w  = recent9.slice(-9).reduce((s,c)=>s+(parseFloat(r[c])||0),0);
+    const q1m  = recent9.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
+    const qtot = salesCols.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
+    if (!catStore4w[plant]) catStore4w[plant]={};
+    if (!catStore1m[plant]) catStore1m[plant]={};
+    if (!catStoreTotal[plant]) catStoreTotal[plant]={};
+    catStore4w[plant][cat]=(catStore4w[plant][cat]||0)+q4w;
+    catStore1m[plant][cat]=(catStore1m[plant][cat]||0)+q1m;
+    catStoreTotal[plant][cat]=(catStoreTotal[plant][cat]||0)+qtot;
+    if (!stylePlant4w[style]) stylePlant4w[style]={};
+    stylePlant4w[style][plant]=(stylePlant4w[style][plant]||0)+q4w;
+  }
+  return {sales, recentSales, catStore4w, catStore1m, catStoreTotal, stylePlant4w};
+}
+
+// ── 파싱: 가용재고 ────────────────────────────────────────────────────
+// 초도 판별: 최종재고반출 없으면 초도 (한 번도 출고 안 된 상품)
+function parseAvailableStock(wb) {
+  const ws = wb.Sheets['Sheet1'] || wb.Sheets[wb.SheetNames[0]];
+  const rows = sheetToRows(ws);
+  let hdr = -1;
+  for (let i=0;i<rows.length;i++) {
+    if (rows[i] && (String(rows[i][0]||'').includes('ID') || String(rows[i][1]||'').includes('자재'))) {
+      hdr = i; break;
+    }
+  }
+  if (hdr < 0) hdr = 0;
+  const h = rows[hdr];
+  const iStyle   = h.findIndex(v => String(v||'') === 'ID') >= 0 ? h.findIndex(v => String(v||'') === 'ID') : 0;
+  const iMat     = h.findIndex(v => String(v||'').includes('자재') && !String(v||'').includes('내역') && !String(v||'').includes('그룹'));
+  const iQty     = h.findIndex(v => String(v||'').includes('가용 수량') || String(v||'').includes('가용수량'));
+  const iName    = h.findIndex(v => String(v||'').includes('자재내역'));
+  const iLastOut = h.findIndex(v => String(v||'').includes('최종재고반출'));
+  const iPrice   = h.findIndex(v => String(v||'').includes('이동평균가'));
+  const iSeason  = h.findIndex(v => String(v||'').includes('시즌 연도') || String(v||'').includes('시즌연도'));
+
+  const avail = {};
+  for (let i=hdr+1;i<rows.length;i++) {
+    const r = rows[i]; if (!r) continue;
+    const style = String(r[iStyle]||r[iMat]||'').trim();
+    if (!style) continue;
+    // 자라 브랜드 제외 (자재내역에 ZARA/자라 포함)
+    const itemName = iName >= 0 ? String(r[iName]||'').toUpperCase() : '';
+    if (itemName.includes('ZARA') || String(r[iName]||'').includes('자라')) continue;
+    const qty = parseFloat(r[iQty]||0);
+    const lastOut = iLastOut >= 0 ? r[iLastOut] : null;
+    // 초도 = 계절연도 2026 이상 AND 최종재고반출 없음
+    const seasonYr = iSeason >= 0 ? parseInt(String(r[iSeason]||'').trim()) : 0;
+    const noOutHist = !lastOut || String(lastOut).trim() === '' || String(lastOut).trim() === '-';
+    const isNew = (seasonYr >= 2026) && noOutHist;
+
+    if (!avail[style]) {
+      avail[style] = {
+        name: iName >= 0 ? String(r[iName]||'').trim() : '',
+        avg_price: iPrice >= 0 ? (parseFloat(r[iPrice])||0) : 0,
+        total_qty: 0,
+        is_new: isNew, // 초도 여부
+      };
+    }
+    avail[style].total_qty += qty;
+    // 하나라도 출고 이력 있으면 반응으로
+    if (!isNew) avail[style].is_new = false;
+  }
+  return avail;
+}
+
+// ── 파싱: 적정재고 ────────────────────────────────────────────────────
+function parseQuota(wb) {
+  const wsName = wb.SheetNames.includes('정리') ? '정리' : wb.SheetNames[0];
+  const ws = wb.Sheets[wsName];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+
+  // 셀 정규화
+  const clean = v => v != null ? String(v).replace(/[\r\n\t]/g,'').trim() : '';
+
+  // 진열량 컬럼 위치 찾기 (헤더 전체 스캔)
+  let iDisplay = -1, iStore = -1, iCat = -1;
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    const r = rows[i]; if (!r) continue;
+    for (let j = 0; j < r.length; j++) {
+      const v = clean(r[j]);
+      if (v === '진열량') iDisplay = j;
+      if (v === '점포' || v === '점포명') iStore = j;
+      if (v === '카테고리') iCat = j;
+    }
+  }
+  // 헤더에서 못 찾으면 데이터 행으로 추정
+  // 콘솔 확인 결과: r[0]=매장, r[1]=카테고리, r[7]=진열량
+  if (iStore < 0) iStore = 0;
+  if (iCat < 0) iCat = 1;
+  if (iDisplay < 0) iDisplay = 7;
+
+  const CATS = ['남성','여성','아동','리빙','캐릭터'];
+  const dq = {};
+  let curStore = null;
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]; if (!r) continue;
+    const c1 = clean(r[iStore]);
+    const c2 = clean(r[iCat]);
+    if (c1 && c1 !== '-' && c1 !== '계' && c1 !== '점포' && c2 === '소계') {
+      curStore = c1; continue;
+    }
+    if (curStore && CATS.includes(c2)) {
+      const raw = r[iDisplay];
+      const val = typeof raw === 'number' ? raw : parseFloat(String(raw||'').replace(/,/g,''))||0;
+      dq[curStore + '__' + c2] = val;
+    }
+  }
+  return dq;
+}
+
+// ── 주간 판매량 사전 계산 ─────────────────────────────────────────────
+function preCalcWeeklySales(recentSales, inv) {
+  const weeklyMap = {};
+  for (const [style, storeSales] of Object.entries(recentSales)) {
+    if (!inv[style]) continue;
+    const quotaCat = MCH2_QUOTA_CAT[inv[style].mch2] || inv[style].cat;
+    for (const [plant, qty] of Object.entries(storeSales)) {
+      const key = plant + '__' + quotaCat;
+      weeklyMap[key] = (weeklyMap[key] || 0) + qty;
+    }
+  }
+  for (const k of Object.keys(weeklyMap)) weeklyMap[k] /= 12;
+  return weeklyMap;
+}
+
+// 월간 판매량 사전 계산 (최근 3개월 ÷ 3)
+function preCalcMonthlySales(recentSales, inv) {
+  const monthlyMap = {};
+  for (const [style, storeSales] of Object.entries(recentSales)) {
+    if (!inv[style]) continue;
+    const quotaCat = MCH2_QUOTA_CAT[inv[style].mch2] || inv[style].cat;
+    for (const [plant, qty] of Object.entries(storeSales)) {
+      const key = plant + '__' + quotaCat;
+      monthlyMap[key] = (monthlyMap[key] || 0) + qty;
+    }
+  }
+  for (const k of Object.keys(monthlyMap)) monthlyMap[k] /= 3;
+  return monthlyMap;
+}
+
+// ── 유사스타일 인덱스 ─────────────────────────────────────────────────
+function buildSimilarIndex(inv) {
+  const idx = {};
+  for (const [m, i] of Object.entries(inv)) {
+    if (!idx[i.mch2]) idx[i.mch2] = [];
+    idx[i.mch2].push({
+      mat:m, name:i.name, season:i.season,
+      season_month:i.season_month, size:i.size, color:i.color, mch2:i.mch2,
+      init_price:i.init_price||i.avg_price,
+      cur_price:i.cur_price||i.avg_price,
+      avg_price:i.avg_price,
+    });
+  }
+  return idx;
+}
+
+// ── 유사스타일 찾기 (최초판매가 + 현판가 기준) ────────────────────────
+function findSimilar(mat, info, inv, priceRange, remaining, similarIdx) {
+  const pool = similarIdx ? (similarIdx[info.mch2]||[]) : Object.entries(inv).map(([m,i])=>({mat:m,...i}));
+  const candidates = [];
+  const baseInit = info.init_price || info.avg_price || 1;
+  const baseCur  = info.cur_price  || info.avg_price || 1;
+
+  for (const i of pool) {
+    const m = i.mat;
+    if (m===mat) continue;
+    if (i.season!==info.season&&i.season!=='ALL'&&info.season!=='ALL') continue;
+    if ((remaining[m]||0)<2) continue;
+
+    // 조건 3: 최초판매가 ±30%
+    const iInit = i.init_price || i.avg_price || 0;
+    if (Math.abs(iInit - baseInit) / baseInit > priceRange) continue;
+
+    // 조건 4: 현판가 ±30%
+    const iCur = i.cur_price || i.avg_price || 0;
+    if (baseCur > 0 && Math.abs(iCur - baseCur) / baseCur > priceRange) continue;
+
+    let score = 0;
+    const sameSize  = info.size  && i.size  && info.size!=='#'  && i.size!=='#'  && info.size===i.size;
+    const sameColor = info.color && i.color && info.color!=='#' && i.color!=='#' && info.color===i.color;
+    if (sameSize && sameColor) score = 3;
+    else if (sameSize) score = 2;
+    else score = 1;
+    candidates.push({...i, score});
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a,b) => b.score - a.score);
+  const best = candidates[0];
+  let matchLabel = '카테고리+가격대';
+  if (best.score===3) matchLabel = '사이즈+컬러 일치';
+  else if (best.score===2) matchLabel = '사이즈 일치';
+  return {...best, matchLabel};
+}
+
+// ── 메인 분배 로직 ────────────────────────────────────────────────────
+function distribute(inv, salesData, availStock, weather) {
+  const {sales, recentSales, catStore4w, catStore1m, catStoreTotal, stylePlant4w} = salesData;
+  const initResults=[], reactResults=[], similar=[];
+  const BASE_QTY   = parseInt(document.getElementById('cfg-base').value)||2;
+  const INIT_RATIO = (parseInt(document.getElementById('cfg-init-ratio').value)||50)/100;
+  const PRICE_RANGE= (parseInt(document.getElementById('cfg-price').value)||30)/100;
+  const MIN_AVAIL  = parseInt(document.getElementById('cfg-min-avail').value)||5;
+  const dowMult    = getDowMult();
+
+  // 유사스타일 인덱스
+  const similarIdx = buildSimilarIndex(inv);
+
+  // 가용재고 remaining
+  const remaining = {};
+  for (const [mat, info] of Object.entries(availStock)) remaining[mat] = info.total_qty;
+
+  // 계절월 유효성 체크: 불명확(연중/간절기)/보류 제외
+  function isValidSeasonMonth(smCode) {
+    const p = seasonMonthPriority(smCode);
+    if (p.label.includes('연중') || p.label.includes('간절기')) return false;
+    if (p.mult <= 0.5) return false; // 보류
+    return true;
+  }
+
+  // 매장별 카테고리 현재재고 계산 (inv 기준)
+  const storeCatQty = {};
+  for (const [style, info] of Object.entries(inv)) {
+    const cat = MCH2_QUOTA_CAT[info.mch2] || info.cat;
+    if (!cat) continue;
+    for (const [plant, qty] of Object.entries(info.store_qty||{})) {
+      if (!storeCatQty[plant]) storeCatQty[plant] = {};
+      storeCatQty[plant][cat] = (storeCatQty[plant][cat]||0) + qty;
+    }
+  }
+
+  // ── 1단계: 초도 분배 ──
+  // 조건: is_new, qty>=MIN_AVAIL, 계절월 유효
+  // 방식: 가용재고 50%, 매출비중 높은 순 매장당 2개씩
+  const initStyles = Object.entries(availStock)
+    .filter(([mat, info]) => {
+      if (!info.is_new || info.total_qty < MIN_AVAIL) return false;
+      const invInfo = inv[mat]; if (!invInfo) return false;
+      const cat = MCH2_QUOTA_CAT[invInfo.mch2] || invInfo.cat;
+      if (!cat || cat === '아동') return false;
+      if (!isValidSeasonMonth(invInfo.season_month)) return false;
+      return true;
+    })
+    .sort((a,b) => {
+      const pa = seasonMonthPriority((inv[a[0]]||{}).season_month||'');
+      const pb = seasonMonthPriority((inv[b[0]]||{}).season_month||'');
+      return pb.mult - pa.mult;
+    });
+
+  for (const [mat, availInfo] of initStyles) {
+    const invInfo = inv[mat];
+    const cat = MCH2_QUOTA_CAT[invInfo.mch2] || invInfo.cat;
+    const avail50 = Math.floor(availInfo.total_qty * INIT_RATIO);
+    if (avail50 < BASE_QTY) continue;
+
+    // 매출비중 높은 순으로 매장 정렬
+    const targetStores = Object.entries(STORES)
+      .filter(([,i]) => i.cats.includes(cat))
+      .map(([p]) => p)
+      .sort((a,b) => ((catStoreTotal[b]||{})[cat]||0) - ((catStoreTotal[a]||{})[cat]||0));
+
+    const smP = seasonMonthPriority(invInfo.season_month);
+    const wm  = weatherMult(invInfo.season, weather);
+    let rem = avail50;
+    for (const plant of targetStores) {
+      if (rem < BASE_QTY) break;
+      const storeName = STORES[plant].name;
+      initResults.push({
+        mat, plant, qty:BASE_QTY, cat, dist_type:'init',
+        name:invInfo.name, avg_price:invInfo.avg_price,
+        store_name:storeName, season:invInfo.season,
+        season_month:invInfo.season_month, season_month_label:smP.label,
+        weather_mult:wm,
+        optimal_stock: (displayQty[storeName+'__'+cat]||0) + ((catStore4w[plant]||{})[cat]||0)/8,
+        current_stock: Math.round(storeCatQty[plant] ? (storeCatQty[plant][cat]||0) : 0),
+        avail_qty: availInfo.total_qty, is_similar:false,
+      });
+      rem -= BASE_QTY;
+    }
+    remaining[mat] = (remaining[mat]||0) - (avail50 - rem);
+  }
+
+  // ── 2단계: 반응 분배 ──
+  // 카테고리 단위로 부족량 계산 → 스타일 매출비중으로 배분
+  const plantCatDone = {}; // 이미 처리한 plant+cat
+  for (const plant of Object.keys(STORES)) {
+    for (const cat of ['여성','남성','캐릭터','골드(여)','골드(남)','리빙']) {
+      const storeName = STORES[plant].name;
+      const cur  = (storeCatQty[plant]||{})[cat]||0;
+      const disp = displayQty[storeName+'__'+cat]||0;
+      const s4w  = (catStore4w[plant]||{})[cat]||0;
+      const s1m  = (catStore1m[plant]||{})[cat]||0;
+      const opt  = disp + s4w/8;
+      const maxH = disp + s1m;
+      if (cur >= maxH || cur >= opt) continue;
+      const needed = Math.round((opt - cur) * dowMult);
+      if (needed <= 0) continue;
+
+      // 이 카테고리에서 4주 판매 있는 스타일들에 비중 배분
+      const styleList = Object.entries(stylePlant4w||{})
+        .filter(([mat, plantSales]) => {
+          const plantSale = plantSales[plant]||0;
+          if (plantSale <= 0) return false;
+          const availInfo = availStock[mat]; if (!availInfo || availInfo.is_new) return false;
+          if ((remaining[mat]||0) < BASE_QTY) return false;
+          const invInfo = inv[mat]; if (!invInfo) return false;
+          const matCat = MCH2_QUOTA_CAT[invInfo.mch2] || invInfo.cat;
+          if (matCat !== cat) return false;
+          if (!isValidSeasonMonth(invInfo.season_month)) return false;
+          return true;
+        })
+        .sort((a,b)=>(b[1][plant]||0)-(a[1][plant]||0));
+
+      if (!styleList.length) continue;
+      const totalSales = styleList.reduce((s,[,ps])=>s+(ps[plant]||0),0);
+      let remaining_needed = needed;
+
+      for (const [mat, plantSales] of styleList) {
+        if (remaining_needed <= 0) break;
+        if ((remaining[mat]||0) < BASE_QTY) continue;
+        const share = (plantSales[plant]||0) / totalSales;
+        let alloc = Math.max(BASE_QTY, Math.round(needed * share));
+        alloc = Math.min(alloc, remaining[mat]||0, remaining_needed);
+        if (alloc <= 0) continue;
+
+        const invInfo = inv[mat];
+        const smP = seasonMonthPriority(invInfo.season_month);
+        const wm  = weatherMult(invInfo.season, weather);
+        reactResults.push({
+          mat, plant, qty:alloc, cat, dist_type:'react',
+          name:invInfo.name, avg_price:invInfo.avg_price,
+          store_name:storeName, season:invInfo.season,
+          season_month:invInfo.season_month, season_month_label:smP.label,
+          weather_mult:wm,
+          optimal_stock: Math.round(opt),
+          current_stock: Math.round(cur),
+          avail_qty: availStock[mat].total_qty, is_similar:false,
+        });
+        remaining[mat] = (remaining[mat]||0) - alloc;
+        remaining_needed -= alloc;
+      }
+
+      // 반응 후 가용재고 소진된 스타일 → 유사스타일 대체
+      for (const [mat] of styleList) {
+        if ((remaining[mat]||0) > 0) continue;
+        const invInfo = inv[mat]; if (!invInfo) continue;
+        const simStyle = findSimilar(mat, invInfo, inv, PRICE_RANGE, remaining, similarIdx);
+        if (simStyle && (remaining[simStyle.mat]||0) >= BASE_QTY) {
+          similar.push({orig_mat:mat, orig_name:invInfo.name,
+            sim_mat:simStyle.mat, sim_name:simStyle.name,
+            cat, plant, store_name:storeName,
+            match_label:simStyle.matchLabel, reason:'재고 부족 유사스타일 대체'});
+          const smP2 = seasonMonthPriority((inv[simStyle.mat]||{}).season_month||'');
+          reactResults.push({
+            mat:simStyle.mat, plant, qty:BASE_QTY, cat, dist_type:'react',
+            name:simStyle.name, avg_price:simStyle.avg_price,
+            store_name:storeName, season:simStyle.season,
+            season_month:simStyle.season_month, season_month_label:'유사스타일',
+            weather_mult:1.0, optimal_stock:Math.round(opt),
+            current_stock:Math.round(cur),
+            avail_qty: availStock[simStyle.mat]?availStock[simStyle.mat].total_qty:0,
+            is_similar:true,
+          });
+          remaining[simStyle.mat]=(remaining[simStyle.mat]||0)-BASE_QTY;
+        }
+      }
+    }
+  }
+
+  // 케파 적용 (0이면 무제한)
+  let allResults = [...initResults, ...reactResults];
+  const CAPA = parseInt(document.getElementById('cfg-capa').value)||0;
+  if (CAPA > 0) {
+    let used = 0;
+    allResults = allResults.filter(r => { if(used+r.qty<=CAPA){used+=r.qty;return true;} return false; });
+  }
+  return {results:allResults, similar, initCount:initResults.filter(r=>allResults.includes(r)).length, reactCount:allResults.filter(r=>r.dist_type==='react').length};
+}
+
+
+// ── 엑셀 생성 ──────────────────────────────────────────────────────────
+function buildExcel(results, similar) {
+  const wb = XLSX.utils.book_new();
+  const today = new Date().toISOString().slice(0,10);
+  const dow = ['일','월','화','수','목','금','토'][new Date().getDay()];
+
+  // SAP 업로드용
+  const sap=[['상품코드','플랜트','수량'],['','','']];
+  for (const r of results) {
+    const q = getAdjustedQty(r.mat, r.plant, r.qty);
+    if (q > 0) sap.push([r.mat, r.plant, q]);
+  }
+  const ws1=XLSX.utils.aoa_to_sheet(sap);
+  ws1['!cols']=[{wch:25},{wch:10},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,ws1,'분배장(SAP업로드)');
+
+  // 상세내역
+  const det=[['구분','상품코드','상품명','카테고리','시즌','계절월','출고우선순위','매장명','플랜트','배정수량','가용재고','적정재고','현재재고','이동평균가','날씨가중치','유사스타일']];
+  for (const r of results) {
+    const q = getAdjustedQty(r.mat, r.plant, r.qty);
+    det.push([r.dist_type==='init'?'초도':'반응', r.mat, r.name, r.cat, r.season,
+      r.season_month||'', r.season_month_label||'', r.store_name, r.plant, q,
+      r.avail_qty||'', r.optimal_stock||'', r.current_stock||'',
+      Math.round(r.avg_price), (r.weather_mult||1.0).toFixed(1)+'x', r.is_similar?'유사':'']);
+  }
+  const ws2=XLSX.utils.aoa_to_sheet(det);
+  XLSX.utils.book_append_sheet(wb,ws2,'분배상세내역');
+
+  // 유사스타일
+  if (similar.length) {
+    const sim=[['원본코드','원본상품명','대체코드','대체상품명','카테고리','매장','매칭조건','이유']];
+    for (const s of similar) sim.push([s.orig_mat,s.orig_name,s.sim_mat,s.sim_name,s.cat,s.store_name||'',s.match_label||'',s.reason]);
+    const ws3=XLSX.utils.aoa_to_sheet(sim);
+    XLSX.utils.book_append_sheet(wb,ws3,'유사스타일내역');
+  }
+
+  // 매장별 현황
+  const storeStat={};
+  for (const r of results) {
+    if (!storeStat[r.plant]) storeStat[r.plant]={};
+    const q = getAdjustedQty(r.mat, r.plant, r.qty);
+    storeStat[r.plant][r.cat]=(storeStat[r.plant][r.cat]||0)+q;
+  }
+  const storeRows=[['플랜트','매장명','여성','남성','아동','리빙','캐릭터','골드(여)','골드(남)','합계']];
+  for (const [plant,info] of Object.entries(STORES)) {
+    const s=storeStat[plant]||{};
+    const total=Object.values(s).reduce((a,b)=>a+b,0);
+    storeRows.push([plant,info.name,s['여성']||0,s['남성']||0,s['아동']||0,s['리빙']||0,s['캐릭터']||0,s['골드(여)']||0,s['골드(남)']||0,total]);
+  }
+  const ws4=XLSX.utils.aoa_to_sheet(storeRows);
+  XLSX.utils.book_append_sheet(wb,ws4,'매장별현황');
+  return {wb, today, dow};
+}
+
+function getAdjustedQty(mat, plant, defaultQty) {
+  const el = document.getElementById(`qty-${mat}-${plant}`);
+  if (el) return parseInt(el.value)||0;
+  return defaultQty;
+}
+
+// ── 실행 ──────────────────────────────────────────────────────────────
+async function runDistribution() {
+  hideError();
+  const btn=document.getElementById('run-btn');
+  const spinner=document.getElementById('spinner');
+  const btnText=document.getElementById('btn-text');
+  const progressBox=document.getElementById('progress-box');
+  btn.disabled=true; spinner.classList.add('show'); btnText.textContent='처리 중...';
+  progressBox.classList.add('show');
+  document.getElementById('log-lines').innerHTML='';
+  setProgress(0);
+  try {
+    log('// 파일 읽는 중...','info'); setProgress(8); await tick();
+    const [wbInv, wbSales, wbAvail] = await Promise.all([readXLSX(files.inv), readXLSX(files.sales), readXLSX(files.avail)]);
+    log('✓ 파일 로드 완료','ok'); setProgress(18); await tick();
+
+    log('// 일재고분석 파싱 중...','info');
+    const inv = parseInventory(wbInv);
+    log(`✓ 매장재고 ${Object.keys(inv).length}개 스타일`,'ok');
+    setProgress(30); await tick();
+
+    log('// 매출상세분석 파싱 중...','info');
+    const salesData = parseSales(wbSales);
+    log(`✓ 판매데이터 ${Object.keys(salesData.sales).length}개 스타일`,'ok');
+    setProgress(45); await tick();
+
+    log('// 가용재고 파싱 중...','info');
+    const availStock = parseAvailableStock(wbAvail);
+    const availTotal = Object.values(availStock).reduce((s,v)=>s+v.total_qty,0);
+    const newCount = Object.values(availStock).filter(v=>v.is_new).length;
+    log(`✓ 가용재고 ${Object.keys(availStock).length}개 스타일 / 총 ${availTotal.toLocaleString()}개`,'ok');
+    log(`  초도 ${newCount}개 / 반응 ${Object.keys(availStock).length-newCount}개`,'ok');
+    setProgress(58); await tick();
+
+    setProgress(65); await tick();
+
+    log('// 날씨 정보 조회 중 (서울)...','info');
+    weatherCtx = await fetchWeather();
+    if (weatherCtx) {
+      const tr = weatherCtx.trend>=0?'▲'+weatherCtx.trend.toFixed(1):'▼'+Math.abs(weatherCtx.trend).toFixed(1);
+      log(`✓ 현재기온 ${weatherCtx.cur}°C (${tr}°C)`,'ok');
+    } else log('⚠ 날씨 정보 없음','warn');
+    setProgress(73); await tick();
+
+    log('// 분배 로직 실행 중...','info'); await tick();
+    const distResult = await new Promise(resolve => setTimeout(() => resolve(distribute(inv, salesData, availStock, weatherCtx)), 50));
+    const {results, similar, initCount, reactCount} = distResult;
+    const totalQty = results.reduce((s,r)=>s+r.qty,0);
+    log(`✓ 초도 분배: ${initCount}건`,'ok');
+    log(`✓ 반응 분배: ${reactCount}건`,'ok');
+    log(`✓ 총 배정: ${results.length}건 / ${totalQty.toLocaleString()}개`,'ok');
+    if (similar.length) log(`⚠ 유사스타일 대체: ${similar.length}건`,'warn');
+
+    setProgress(90); await tick();
+
+    log('// 엑셀 생성 중...','info');
+    const {wb, today, dow} = buildExcel(results, similar);
+    resultData = {wb, results, similar, initCount, reactCount, today, dow, totalQty, availTotal};
+    setProgress(100); log('✓ 완료!','ok'); await tick();
+
+    showPanel('result', document.getElementById('nav-result'));
+    renderResult();
+    XLSX.writeFile(wb, `OPR_분배장_${today}_${dow}.xlsx`);
+    log('✓ 엑셀 다운로드 완료','ok');
+  } catch(e) {
+    showError('오류 발생: ' + e.message);
+    log('✗ '+e.message,'err');
+    console.error(e);
+  } finally {
+    btn.disabled=false; spinner.classList.remove('show'); btnText.textContent='분배 실행';
+  }
+}
+
+// ── 결과 렌더링 ──────────────────────────────────────────────────────
+function renderResult() {
+  if (!resultData) return;
+  const {results, similar, initCount, reactCount, totalQty, availTotal} = resultData;
+  document.getElementById('no-result').style.display='none';
+  document.getElementById('result-box').style.display='block';
+  document.getElementById('r-count').textContent = results.length.toLocaleString();
+  document.getElementById('r-qty').textContent = totalQty.toLocaleString();
+  document.getElementById('r-init').textContent = initCount.toLocaleString();
+  document.getElementById('r-react').textContent = reactCount.toLocaleString();
+  if (availTotal) document.getElementById('r-avail-total').textContent = availTotal.toLocaleString();
+
+
+
+  const storeStat={};
+  for (const r of results) {
+    if (!storeStat[r.plant]) storeStat[r.plant]={};
+    storeStat[r.plant][r.cat]=(storeStat[r.plant][r.cat]||0)+r.qty;
+  }
+  const tbody=document.getElementById('store-table'); tbody.innerHTML='';
+  for (const [plant,info] of Object.entries(STORES)) {
+    const s=storeStat[plant]||{};
+    const total=Object.values(s).reduce((a,b)=>a+b,0);
+    tbody.innerHTML+=`<tr><td><b>${info.name}</b></td><td style="color:var(--text3);font-size:12px">${plant}</td><td>${s['여성']||0}</td><td>${s['남성']||0}</td><td>${s['아동']||0}</td><td>${s['리빙']||0}</td><td>${s['캐릭터']||0}</td><td>${s['골드(여)']||0}</td><td>${s['골드(남)']||0}</td><td><b>${total}</b></td></tr>`;
+  }
+
+  renderDetailTable(results);
+
+  if (similar.length) {
+    document.getElementById('similar-card').style.display='block';
+    const stb=document.getElementById('similar-table'); stb.innerHTML='';
+    for (const s of similar.slice(0,50)) {
+      stb.innerHTML+=`<tr>
+        <td><span style="font-size:11px;font-family:monospace">${s.orig_mat}</span><br><span style="font-size:11px;color:var(--text3)">${s.orig_name}</span></td>
+        <td><span style="font-size:11px;font-family:monospace">${s.sim_mat}</span><br><span style="font-size:11px;color:var(--text3)">${s.sim_name}</span></td>
+        <td>${s.cat}</td>
+        <td><span class="badge badge-ok">${s.match_label||'-'}</span></td>
+        <td style="font-size:12px;color:var(--text2)">${s.reason}</td>
+      </tr>`;
+    }
+  }
+}
+
+let detailPage=0;
+const PAGE_SIZE=200;
+let filteredResults=[];
+
+function renderDetailTable(results) {
+  const search = document.getElementById('search-result').value.toLowerCase();
+  const typeFilter = document.getElementById('filter-type').value;
+  filteredResults = results.filter(r => {
+    if (typeFilter && r.dist_type!==typeFilter) return false;
+    if (search && !r.mat.toLowerCase().includes(search) && !r.name.toLowerCase().includes(search) && !r.store_name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  detailPage=0;
+  renderDetailPage();
+}
+
+function renderDetailPage() {
+  const tbody = document.getElementById('detail-table');
+  const start = detailPage * PAGE_SIZE;
+  const end = Math.min(start+PAGE_SIZE, filteredResults.length);
+  if (detailPage===0) tbody.innerHTML='';
+  let html='';
+  for (const r of filteredResults.slice(start, end)) {
+    const typeBadge = r.dist_type==='init'
+      ? `<span class="badge badge-init">초도</span>`
+      : `<span class="badge badge-react">반응</span>`;
+    const stockStatus = r.current_stock > r.optimal_stock
+      ? `<span style="color:var(--warn);font-size:11px;font-weight:600">▲과다</span>`
+      : `<span style="color:var(--ok);font-size:11px;font-weight:600">✓적정</span>`;
+    html+=`<tr>
+      <td>${typeBadge}</td>
+      <td><span style="font-size:12px;font-family:monospace">${r.mat}</span></td>
+      <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td>
+      <td><span class="badge badge-gray">${r.cat}</span></td>
+      <td><span class="badge ${r.season==='SS'?'badge-ss':'badge-fw'}">${r.season}</span></td>
+      <td style="font-size:13px">${r.store_name}</td>
+      <td><input type="number" class="qty-input" id="qty-${r.mat}-${r.plant}" value="${r.qty}" min="0" onchange="onQtyChange(this)"></td>
+      <td style="font-size:12px;color:var(--blue);font-weight:600">${r.avail_qty||'-'}</td>
+      <td style="font-size:12px;color:var(--text3)">${r.optimal_stock||'-'}</td>
+      <td style="font-size:12px">${r.current_stock||'-'} ${stockStatus}</td>
+    </tr>`;
+  }
+  tbody.innerHTML += html;
+  const navEl = document.getElementById('detail-nav');
+  if (navEl) {
+    navEl.innerHTML = `<span style="font-size:12px;color:var(--text3)">${start+1}–${end} / ${filteredResults.length}건</span>
+      ${detailPage>0?`<button class="btn btn-outline btn-sm" onclick="goDetailPage(${detailPage-1})">◀ 이전</button>`:''}
+      ${end<filteredResults.length?`<button class="btn btn-outline btn-sm" onclick="goDetailPage(${detailPage+1})">다음 ▶</button>`:''}`;
+  }
+}
+
+function goDetailPage(page) {
+  detailPage=page;
+  document.getElementById('detail-table').innerHTML='';
+  renderDetailPage();
+}
+function filterResult() { if (resultData) renderDetailTable(resultData.results); }
+function onQtyChange(el) { el.classList.add('modified'); }
+function downloadExcel() {
+  if (!resultData) return;
+  const {wb,today,dow} = buildExcel(resultData.results, resultData.similar);
+  XLSX.writeFile(wb, `OPR_분배장_${today}_${dow}.xlsx`);
+}
+
+// ── 매장 관리 ────────────────────────────────────────────────────────
+function renderStoreList() {
+  const el=document.getElementById('store-list'); el.innerHTML='';
+  for (const [plant,info] of Object.entries(STORES)) {
+    const isCustom=customStores.includes(plant);
+    el.innerHTML+=`<div class="store-item">
+      <div>
+        <span style="font-weight:700;font-size:14px">${info.name}</span>
+        <span style="font-size:12px;color:var(--text3);margin-left:8px">플랜트 ${plant}</span>
+        ${isCustom?'<span class="store-badge store-badge-new" style="margin-left:6px">신규</span>':''}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="store-badge">${info.cats.length}개 카테고리</span>
+        ${isCustom?`<button class="btn btn-danger btn-sm" onclick="removeStore('${plant}')">삭제</button>`:''}
+      </div>
+    </div>`;
+  }
+}
+function calcNewStore() {
+  const w=parseFloat(document.getElementById('ns-w').value)||0,m=parseFloat(document.getElementById('ns-m').value)||0;
+  const k=parseFloat(document.getElementById('ns-k').value)||0,etc=parseFloat(document.getElementById('ns-etc').value)||0;
+  const total=w+m+k+etc,target=parseFloat(document.getElementById('ns-target').value)||0;
+  const pv=document.getElementById('ns-preview'),pc=document.getElementById('ns-preview-content');
+  if (total<=0||target<=0) {pv.style.display='none'; return;}
+  pv.style.display='block';
+  pc.innerHTML=[['여성',w],['남성',m],['아동',k],['기타',etc]].filter(([,v])=>v>0).map(([lbl,v])=>`
+    <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0">
+      <span style="color:var(--text2)">${lbl}</span>
+      <span style="font-weight:600">${Math.round(v/total*100)}% · ${Math.round(v/total*target).toLocaleString()}원</span>
+    </div>`).join('');
+}
+function addNewStore() {
+  const name=document.getElementById('ns-name').value.trim();
+  const plant=document.getElementById('ns-plant').value.trim();
+  if (!name||!plant) {alert('매장명과 플랜트 번호를 입력하세요'); return;}
+  if (STORES[plant]) {alert('이미 등록된 플랜트 번호입니다'); return;}
+  STORES[plant]={name, cats:CAT_LABELS};
+  customStores.push(plant);
+  renderStoreList();
+  ['ns-name','ns-plant','ns-target','ns-w','ns-m','ns-k','ns-etc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ns-preview').style.display='none';
+  alert(`${name} (${plant}) 등록 완료!`);
+}
+function removeStore(plant) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  delete STORES[plant]; customStores=customStores.filter(p=>p!==plant); renderStoreList();
+}
+
+// ── 진열량 관리 ──────────────────────────────────────────────────────
+const DISPLAY_CATS=['여성','남성','아동','리빙','캐릭터'];
+function renderDisplayTable() {
+  const tbody=document.getElementById('display-table-body'); tbody.innerHTML='';
+  for (const [plant,info] of Object.entries(STORES)) {
+    let row=`<tr><td style="font-weight:600">${info.name}</td>`;
+    for (const cat of DISPLAY_CATS) {
+      const val=displayQty[info.name+'__'+cat]||0;
+      row+=`<td><input type="number" min="0" value="${val}" id="dq-${plant}-${cat}" style="width:65px;text-align:center"></td>`;
+    }
+    row+='</tr>'; tbody.innerHTML+=row;
+  }
+}
+function saveDisplayQty() {
+  for (const [plant,info] of Object.entries(STORES)) {
+    for (const cat of DISPLAY_CATS) {
+      const el=document.getElementById('dq-'+plant+'-'+cat);
+      if (el) displayQty[info.name+'__'+cat]=parseInt(el.value)||0;
+    }
+  }
+  saveDisplayQtyToStorage(); alert('진열량이 저장되었습니다');
+}
+function saveDisplayQtyToStorage() {
+  try {localStorage.setItem('opr_display_qty', JSON.stringify(displayQty));} catch(e){}
+}
+function loadDisplayQtyFromStorage() {
+  try {const d=localStorage.getItem('opr_display_qty'); if(d) displayQty=JSON.parse(d);} catch(e){}
+}
+
+// ── 진열량 직접 테스트 ────────────────────────────────────────────────
+async function loadQuotaFile(input) {
+  const file = input.files[0]; if (!file) return;
+  const statusEl = document.getElementById('quota-load-status');
+  statusEl.textContent = '불러오는 중...';
+  statusEl.style.color = 'var(--text3)';
+  try {
+    const wb = await readXLSX(file);
+    const dq = parseQuota(wb);
+    const count = Object.keys(dq).length;
+    if (count === 0) {
+      statusEl.textContent = '⚠ 진열량 데이터를 찾지 못했습니다';
+      statusEl.style.color = 'var(--warn)';
+      return;
+    }
+    Object.assign(displayQty, dq);
+    saveDisplayQtyToStorage();
+    renderDisplayTable();
+    statusEl.textContent = '✓ ' + count + '건 불러오기 완료';
+    statusEl.style.color = 'var(--ok)';
+  } catch(e) {
+    statusEl.textContent = '오류: ' + e.message;
+    statusEl.style.color = 'var(--err)';
+    console.error(e);
+  }
+}
+
+// ── 유틸 ─────────────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const el=document.getElementById('log-lines');
+  el.innerHTML+=`<div class="log-${type}">${msg}</div>`;
+  el.scrollTop=el.scrollHeight;
+}
+function setProgress(v) { document.getElementById('progress-bar').style.width=v+'%'; }
+function showError(msg) { const el=document.getElementById('error-box'); el.textContent=msg; el.classList.add('show'); }
+function hideError() { document.getElementById('error-box').classList.remove('show'); }
+function tick() { return new Promise(r=>setTimeout(r,30)); }
+
+// ── 초기화 ───────────────────────────────────────────────────────────
+loadDisplayQtyFromStorage();
+(async()=>{
+  weatherCtx = await fetchWeather();
+  const wl=document.getElementById('w-loading'), wc=document.getElementById('w-content');
+  if (!weatherCtx) {wl.textContent='⚠ 날씨 정보를 불러올 수 없습니다'; return;}
+  wl.style.display='none'; wc.style.display='flex';
+  const isUp=weatherCtx.trend>=0;
+  document.getElementById('w-temp').textContent=weatherCtx.cur+'°C';
+  document.getElementById('w-temp').className='w-temp '+(isUp?'w-up':'w-down');
+  document.getElementById('w-desc').textContent='서울 현재기온 · 전일 대비 '+(isUp?'▲':'▼')+Math.abs(weatherCtx.trend).toFixed(1)+'°C '+(isUp?'상승':'하락');
+  const ss=weatherMult('SS',weatherCtx), fw=weatherMult('FW',weatherCtx);
+  const dow=['일','월','화','수','목','금','토'][new Date().getDay()], dm=getDowMult();
+  document.getElementById('w-tags').innerHTML=
+    `<span class="w-tag tag-ss">SS ${ss>=1?'+':''}${Math.round((ss-1)*100)}%</span>`+
+    `<span class="w-tag tag-fw">FW ${fw>=1?'+':''}${Math.round((fw-1)*100)}%</span>`+
+    `<span class="w-tag tag-day">${dow}요일 ×${dm.toFixed(2)}</span>`+
+    `<span class="w-tag tag-init">초도/반응 자동판별</span>`;
+})();
+</script>
+</body>
+</html>
