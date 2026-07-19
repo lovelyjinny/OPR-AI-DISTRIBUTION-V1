@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OPR 재고 회전 — 매장 조회</title>
+<style>
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#F5F6F8;color:#2E3440;margin:0 auto;padding:16px;max-width:720px}
+h1{font-size:19px;margin:8px 0 2px}
+.muted{color:#6B7280;font-size:12px;margin-bottom:14px}
+select,input,textarea,button{font-family:inherit;font-size:14px;border:1px solid #D8DCE2;border-radius:8px;padding:9px 10px;box-sizing:border-box}
+select{width:100%;background:#fff;margin-bottom:14px}
+.sec{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(80,90,110,.12);padding:14px;margin-bottom:14px}
+.h{font-weight:700;font-size:14px;margin-bottom:10px}
+.badge{color:#fff;font-size:11px;border-radius:6px;padding:2px 8px;margin-right:8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:#F0F2F5;text-align:left;padding:6px;color:#4A4F57}
+td{border-top:1px solid #EDEFF2;padding:6px;vertical-align:top}
+.code{color:#9AA1AB;font-size:11px}
+.empty{color:#9AA1AB;font-size:13px;padding:6px}
+.reqform{display:grid;gap:8px}
+.reqform input,.reqform textarea{width:100%}
+button{background:#3F5266;color:#fff;border:none;font-weight:700;cursor:pointer;padding:11px}
+button:disabled{opacity:.5}
+.ok{color:#3F5B46;font-size:13px;font-weight:700;padding:6px 0}
+.err{color:#8B1A1A;font-size:13px;padding:6px 0}
+.pill{display:inline-block;background:#E8EEF4;color:#33475C;border-radius:6px;font-size:11px;padding:2px 8px;margin:2px 4px 2px 0}
+#loading{color:#6B7280;padding:20px 0;text-align:center}
+</style></head><body>
+<h1>OPR 재고 회전 — 매장 조회</h1>
+<div class="muted" id="sub">매장을 선택하면 이번 주 이동·반품 지시와 입고 예정을 볼 수 있습니다.</div>
+<select id="store"><option value="">매장 선택</option></select>
+<div id="loading" style="display:none">불러오는 중…</div>
+<div id="content"></div>
+<div class="sec" id="reqsec" style="display:none">
+  <div class="h"><span class="badge" style="background:#7A93AC">요청</span>필요한 상품 요청하기</div>
+  <div class="muted" style="margin-bottom:8px">고객 문의가 많거나 필요한 상품을 요청하면 얼로케이터 검토 후 다음 회차에 반영됩니다.</div>
+  <div class="reqform">
+    <input id="r_product" placeholder="상품명 (필수)">
+    <input id="r_style" placeholder="스타일코드 (알면 입력)">
+    <input id="r_sc" placeholder="사이즈/컬러 (예: L / 블랙)">
+    <input id="r_qty" type="number" placeholder="수량" min="1">
+    <textarea id="r_reason" rows="2" placeholder="사유 (예: 고객 문의 잦음, 단골 요청)"></textarea>
+    <button id="r_btn" onclick="sendReq()">요청 보내기</button>
+    <div id="r_msg"></div>
+  </div>
+  <div id="myreqs"></div>
+</div>
+<script>
+const SB="https://tdbdxprjkwvlscsdstcg.supabase.co/rest/v1";
+const KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRkYmR4cHJqa3d2bHNjc2RzdGNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDc1MzMsImV4cCI6MjA5Mjg4MzUzM30.O4y2kBIimY1b1SqCo_kSQJzOzN3LwJKBFqJLikRuGT4";
+const H={apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json"};
+const STORES={"7215":"천호2점","8227":"강서점","8224":"송파점","8206":"강남점","7209":"분당점","7217":"불광점","8237":"수원터미널점","8208":"동수원점","8212":"순천점"};
+const sel=document.getElementById("store");
+for(const[c,n]of Object.entries(STORES)){const o=document.createElement("option");o.value=c;o.textContent=n;sel.appendChild(o);}
+const param=new URLSearchParams(location.search).get("store");
+if(param&&STORES[param]){sel.value=param;}else if(localStorage.getItem("store")){sel.value=localStorage.getItem("store");}
+sel.onchange=()=>{localStorage.setItem("store",sel.value);load();};
+async function q(path){const r=await fetch(SB+path,{headers:H});if(!r.ok)throw new Error(await r.text());return r.json();}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function table(title,badge,color,head,rows){
+  let body=rows.length?rows.map(r=>"<tr>"+r.map(v=>"<td>"+v+"</td>").join("")+"</tr>").join(""):"";
+  return `<div class="sec"><div class="h"><span class="badge" style="background:${color}">${badge}</span>${title}</div>`+
+    (rows.length?`<table><thead><tr>${head.map(h=>"<th>"+h+"</th>").join("")}</tr></thead><tbody>${body}</tbody></table>`:'<div class="empty">해당 없음</div>')+`</div>`;
+}
+async function load(){
+  const s=sel.value;if(!s)return;
+  document.getElementById("loading").style.display="block";
+  document.getElementById("content").innerHTML="";
+  try{
+    const latest=await q("/rotation_orders?select=run_date&order=run_date.desc&limit=1");
+    if(!latest.length){document.getElementById("content").innerHTML='<div class="sec empty">아직 게시된 지시가 없습니다.</div>';document.getElementById("loading").style.display="none";return;}
+    const rd=latest[0].run_date;
+    document.getElementById("sub").textContent=rd+" 기준 · 이동분은 '회전' 프로세스로 전산 처리 · 문의: OPR 얼로케이터";
+    const rows=await q(`/rotation_orders?select=*&run_date=eq.${rd}&store_code=eq.${s}&order=kind,qty.desc`);
+    const mv=rows.filter(r=>r.kind==="move_out"),rt=rows.filter(r=>r.kind==="return_out"),inc=rows.filter(r=>r.kind==="incoming");
+    const pn=r=>esc(r.name)+'<div class="code">'+esc(r.style)+"</div>";
+    const sum=a=>a.reduce((x,r)=>x+r.qty,0).toLocaleString();
+    document.getElementById("content").innerHTML=
+      table(`매장 이동 출고 — ${sum(mv)}장`,"출고","#87A98D",["도착","상품","사이즈","컬러","수량"],mv.map(r=>[esc(r.other_store),pn(r),esc(r.size),esc(r.color),r.qty]))+
+      table(`물류 반품 출고 — ${sum(rt)}장`,"반품","#C9A227",["상품","사이즈","컬러","수량","트랙"],rt.map(r=>[pn(r),esc(r.size),esc(r.color),r.qty,esc(r.track)]))+
+      table(`입고 예정 — ${sum(inc)}장`,"입고","#8FA8C4",["출발","상품","사이즈","컬러","수량"],inc.map(r=>[esc(r.other_store),pn(r),esc(r.size),esc(r.color),r.qty]));
+    document.getElementById("reqsec").style.display="block";
+    loadMyReqs();
+  }catch(e){document.getElementById("content").innerHTML='<div class="sec err">데이터를 불러오지 못했습니다: '+esc(e.message)+"</div>";}
+  document.getElementById("loading").style.display="none";
+}
+async function loadMyReqs(){
+  const s=sel.value;
+  const reqs=await q(`/rotation_requests?select=*&store_code=eq.${s}&order=created_at.desc&limit=10`);
+  document.getElementById("myreqs").innerHTML=reqs.length?'<div class="h" style="margin-top:14px">최근 요청</div>'+reqs.map(r=>{
+    const st={pending:"검토중",approved:"승인됨",rejected:"반려"}[r.status]||r.status;
+    return `<div class="pill">${esc(r.product)} ${r.qty?r.qty+"개":""} · ${st}</div>`;}).join(""):"";
+}
+async function sendReq(){
+  const s=sel.value;if(!s){alert("매장을 먼저 선택하세요");return;}
+  const product=document.getElementById("r_product").value.trim();
+  if(!product){document.getElementById("r_msg").innerHTML='<div class="err">상품명을 입력해 주세요.</div>';return;}
+  const btn=document.getElementById("r_btn");btn.disabled=true;
+  const body={store_code:s,store_name:STORES[s],product,style:document.getElementById("r_style").value.trim(),
+    size_color:document.getElementById("r_sc").value.trim(),qty:parseInt(document.getElementById("r_qty").value)||null,
+    reason:document.getElementById("r_reason").value.trim()};
+  try{
+    const r=await fetch(SB+"/rotation_requests",{method:"POST",headers:H,body:JSON.stringify(body)});
+    if(!r.ok)throw new Error(await r.text());
+    document.getElementById("r_msg").innerHTML='<div class="ok">요청이 접수됐습니다. 얼로케이터 검토 후 반영됩니다.</div>';
+    ["r_product","r_style","r_sc","r_qty","r_reason"].forEach(id=>document.getElementById(id).value="");
+    loadMyReqs();
+  }catch(e){document.getElementById("r_msg").innerHTML='<div class="err">전송 실패: '+esc(e.message)+"</div>";}
+  btn.disabled=false;
+}
+if(sel.value)load();
+</script></body></html>
