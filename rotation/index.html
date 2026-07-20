@@ -3,20 +3,26 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OPR 재고 회전 — 매장 조회</title>
 <style>
-body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#F5F6F8;color:#2E3440;margin:0 auto;padding:16px;max-width:720px}
-h1{font-size:19px;margin:8px 0 2px}
-.muted{color:#6B7280;font-size:12px;margin-bottom:14px}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#F5F6F8;color:#2E3440;margin:0 auto;padding:16px;max-width:1100px}
+h1{font-size:20px;margin:8px 0 2px}
+.muted{color:#6B7280;font-size:12.5px;margin-bottom:14px}
 select,input,textarea,button{font-family:inherit;font-size:14px;border:1px solid #D8DCE2;border-radius:8px;padding:9px 10px;box-sizing:border-box}
-select{width:100%;background:#fff;margin-bottom:14px}
-.sec{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(80,90,110,.12);padding:14px;margin-bottom:14px}
-.h{font-weight:700;font-size:14px;margin-bottom:10px}
+select{width:100%;max-width:340px;background:#fff;margin-bottom:14px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.stat{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(80,90,110,.12);padding:10px 18px;font-size:13px;color:#6B7280}
+.stat b{font-size:19px;color:#3F5266;margin-right:4px}
+#content{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:900px){#content{grid-template-columns:1fr 1fr}.sec.wide{grid-column:1/-1}}
+.sec{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(80,90,110,.12);padding:16px;margin-bottom:0}
+.h{font-weight:700;font-size:14.5px;margin-bottom:10px}
 .badge{color:#fff;font-size:11px;border-radius:6px;padding:2px 8px;margin-right:8px}
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{background:#F0F2F5;text-align:left;padding:6px;color:#4A4F57}
-td{border-top:1px solid #EDEFF2;padding:6px;vertical-align:top}
-.code{color:#9AA1AB;font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{background:#F0F2F5;text-align:left;padding:7px;color:#4A4F57}
+td{border-top:1px solid #EDEFF2;padding:7px;vertical-align:top}
+.code{color:#9AA1AB;font-size:11.5px}
 .empty{color:#9AA1AB;font-size:13px;padding:6px}
 .reqform{display:grid;gap:8px}
+@media(min-width:900px){.reqform{grid-template-columns:1fr 1fr}.reqform textarea,.reqform button,.reqform #r_msg{grid-column:1/-1}}
 .reqform input,.reqform textarea{width:100%}
 button{background:#3F5266;color:#fff;border:none;font-weight:700;cursor:pointer;padding:11px}
 button:disabled{opacity:.5}
@@ -24,10 +30,12 @@ button:disabled{opacity:.5}
 .err{color:#8B1A1A;font-size:13px;padding:6px 0}
 .pill{display:inline-block;background:#E8EEF4;color:#33475C;border-radius:6px;font-size:11px;padding:2px 8px;margin:2px 4px 2px 0}
 #loading{color:#6B7280;padding:20px 0;text-align:center}
+#reqsec{margin-top:14px}
 </style></head><body>
 <h1>OPR 재고 회전 — 매장 조회</h1>
 <div class="muted" id="sub">매장을 선택하면 이번 주 이동·반품 지시와 입고 예정을 볼 수 있습니다.</div>
 <select id="store"><option value="">매장 선택</option></select>
+<div class="stats" id="stats" style="display:none"></div>
 <div id="loading" style="display:none">불러오는 중…</div>
 <div id="content"></div>
 <div class="sec" id="reqsec" style="display:none">
@@ -56,9 +64,9 @@ if(param&&STORES[param]){sel.value=param;}else if(localStorage.getItem("store"))
 sel.onchange=()=>{localStorage.setItem("store",sel.value);load();};
 async function q(path){const r=await fetch(SB+path,{headers:H});if(!r.ok)throw new Error(await r.text());return r.json();}
 function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-function table(title,badge,color,head,rows){
+function table(title,badge,color,head,rows,wide){
   let body=rows.length?rows.map(r=>"<tr>"+r.map(v=>"<td>"+v+"</td>").join("")+"</tr>").join(""):"";
-  return `<div class="sec"><div class="h"><span class="badge" style="background:${color}">${badge}</span>${title}</div>`+
+  return `<div class="sec${wide?" wide":""}"><div class="h"><span class="badge" style="background:${color}">${badge}</span>${title}</div>`+
     (rows.length?`<table><thead><tr>${head.map(h=>"<th>"+h+"</th>").join("")}</tr></thead><tbody>${body}</tbody></table>`:'<div class="empty">해당 없음</div>')+`</div>`;
 }
 async function load(){
@@ -74,10 +82,15 @@ async function load(){
     const mv=rows.filter(r=>r.kind==="move_out"),rt=rows.filter(r=>r.kind==="return_out"),inc=rows.filter(r=>r.kind==="incoming");
     const pn=r=>esc(r.name)+'<div class="code">'+esc(r.style)+"</div>";
     const sum=a=>a.reduce((x,r)=>x+r.qty,0).toLocaleString();
+    document.getElementById("stats").style.display="flex";
+    document.getElementById("stats").innerHTML=
+      `<div class="stat"><b>${sum(mv)}</b>장 이동 출고</div>`+
+      `<div class="stat"><b>${sum(rt)}</b>장 물류 반품</div>`+
+      `<div class="stat"><b>${sum(inc)}</b>장 입고 예정</div>`;
     document.getElementById("content").innerHTML=
       table(`매장 이동 출고 — ${sum(mv)}장`,"출고","#87A98D",["도착","상품","사이즈","컬러","수량"],mv.map(r=>[esc(r.other_store),pn(r),esc(r.size),esc(r.color),r.qty]))+
-      table(`물류 반품 출고 — ${sum(rt)}장`,"반품","#C9A227",["상품","사이즈","컬러","수량","트랙"],rt.map(r=>[pn(r),esc(r.size),esc(r.color),r.qty,esc(r.track)]))+
-      table(`입고 예정 — ${sum(inc)}장`,"입고","#8FA8C4",["출발","상품","사이즈","컬러","수량"],inc.map(r=>[esc(r.other_store),pn(r),esc(r.size),esc(r.color),r.qty]));
+      table(`입고 예정 — ${sum(inc)}장`,"입고","#8FA8C4",["출발","상품","사이즈","컬러","수량"],inc.map(r=>[esc(r.other_store),pn(r),esc(r.size),esc(r.color),r.qty]))+
+      table(`물류 반품 출고 — ${sum(rt)}장`,"반품","#C9A227",["상품","사이즈","컬러","수량","트랙"],rt.map(r=>[pn(r),esc(r.size),esc(r.color),r.qty,esc(r.track)]),true);
     document.getElementById("reqsec").style.display="block";
     loadMyReqs();
   }catch(e){document.getElementById("content").innerHTML='<div class="sec err">데이터를 불러오지 못했습니다: '+esc(e.message)+"</div>";}
