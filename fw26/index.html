@@ -1,0 +1,44 @@
+<!doctype html><html lang=ko><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>FW26 매입 조치판</title><style>
+body{font-family:'Malgun Gothic',sans-serif;margin:16px;background:#f7f8fa;color:#222}
+h1{font-size:20px} .date{color:#888;font-size:13px}
+.cards{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.card{background:#fff;border-radius:10px;padding:12px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);min-width:130px}
+.card .cat{font-size:13px;color:#666} .card .big{font-size:26px;font-weight:700} .card .sub{font-size:11px;color:#999}
+.alert{background:#404040;color:#fff;padding:10px 14px;border-radius:8px;margin:10px 0;font-size:14px}
+table{border-collapse:collapse;width:100%;background:#fff;font-size:13px}
+th,td{border:1px solid #e2e5ea;padding:6px 8px;text-align:center} td.l{text-align:left}
+th{background:#eef1f6;position:sticky;top:0}
+tr.bk td{background:#404040;color:#fff;font-weight:600}
+tr.yl td{background:#fff7dd} tr.rd td{background:#fdeae0} tr.gn td{background:#eaf6e6} tr.gy td{background:#f0f0f0;color:#999}
+.note{font-size:11px;color:#888;margin-top:10px;line-height:1.6}
+h2{font-size:16px;margin:22px 0 6px} .chip{font-size:12px;background:#4472C4;color:#fff;border-radius:10px;padding:2px 10px;vertical-align:middle}
+.chip2{font-size:12px;background:#e8ecf4;color:#345;border-radius:10px;padding:2px 10px;vertical-align:middle}
+.card{cursor:pointer;border:2px solid transparent;transition:.15s}
+.card:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.card.on{border-color:#4472C4;background:#eef3fc}
+.hint{font-size:11px;color:#aaa;margin:-8px 0 8px}
+</style>
+<script>
+var cur=null;
+function filt(c){
+  var cats=['여성','남성','아동','잡화'];
+  if(cur===c){cur=null;}else{cur=c;}
+  cats.forEach(function(k){
+    var s=document.getElementById('sec-'+k), d=document.getElementById('card-'+k);
+    if(s) s.style.display=(cur===null||cur===k)?'':'none';
+    if(d) d.className=(cur===k)?'card on':'card';
+  });
+}
+</script>
+<h1>FW26 매입 조치판 <span class=date>갱신 2026-07-29 · 첫 측정</span></h1>
+<div class=cards><div class='card' id='card-여성' onclick="filt('여성')"><div class='cat'>여성</div><div class='big'>53%</div><div class='sub'>1,921 / 3,612M · 백서현</div></div><div class='card' id='card-남성' onclick="filt('남성')"><div class='cat'>남성</div><div class='big'>68%</div><div class='sub'>2,586 / 3,831M · 한정훈</div></div><div class='card' id='card-아동' onclick="filt('아동')"><div class='cat'>아동</div><div class='big'>43%</div><div class='sub'>796 / 1,854M · 조한익</div></div><div class='card' id='card-잡화' onclick="filt('잡화')"><div class='cat'>잡화</div><div class='big'>12%</div><div class='sub'>193 / 1,562M · 지연홍</div></div></div>
+<div class=hint>카드를 누르면 해당 카테고리만 표시 (다시 누르면 전체)</div>
+
+<div class='sec' id='sec-여성'><h2>여성 <span class='chip'>담당 백서현</span> <span class='chip2'>진척 53% · 티켓 14건</span></h2><table><tr><th>아이템</th><th>계획(M)</th><th>매입(M)</th><th>진척</th><th>잔여(M)</th><th>주간증가</th><th>정체(주)</th><th>상태</th></tr><tr class='rd'><td class='l'>패딩점퍼</td><td>289</td><td>34</td><td>12%</td><td>255</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>다운점퍼</td><td>253</td><td>28</td><td>11%</td><td>224</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>청바지</td><td>181</td><td>27</td><td>15%</td><td>154</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>셔츠</td><td>144</td><td>38</td><td>27%</td><td>106</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>코트</td><td>181</td><td>79</td><td>44%</td><td>101</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>긴팔티</td><td>116</td><td>16</td><td>14%</td><td>100</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>점퍼</td><td>144</td><td>66</td><td>46%</td><td>78</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>블라우스</td><td>105</td><td>50</td><td>48%</td><td>54</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>후드티</td><td>72</td><td>22</td><td>30%</td><td>51</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>반팔티</td><td>72</td><td>35</td><td>49%</td><td>37</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>조끼</td><td>36</td><td>6</td><td>17%</td><td>30</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>PK티</td><td>36</td><td>8</td><td>23%</td><td>28</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>후드집업</td><td>36</td><td>10</td><td>28%</td><td>26</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>반바지</td><td>5</td><td>3</td><td>46%</td><td>3</td><td>—</td><td></td><td>🔴 부족</td></tr></table></div><div class='sec' id='sec-남성'><h2>남성 <span class='chip'>담당 한정훈</span> <span class='chip2'>진척 68% · 티켓 10건</span></h2><table><tr><th>아이템</th><th>계획(M)</th><th>매입(M)</th><th>진척</th><th>잔여(M)</th><th>주간증가</th><th>정체(주)</th><th>상태</th></tr><tr class='rd'><td class='l'>신발</td><td>965</td><td>208</td><td>22%</td><td>757</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>아우터</td><td>611</td><td>207</td><td>34%</td><td>405</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>모자</td><td>130</td><td>0</td><td>0%</td><td>130</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>맨투맨</td><td>226</td><td>102</td><td>45%</td><td>125</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>후드티/후드집업</td><td>177</td><td>79</td><td>45%</td><td>98</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>청바지</td><td>83</td><td>10</td><td>12%</td><td>74</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>반바지</td><td>72</td><td>1</td><td>1%</td><td>71</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>PQ티셔츠</td><td>120</td><td>58</td><td>48%</td><td>62</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>가방</td><td>59</td><td>10</td><td>18%</td><td>49</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>가디건</td><td>73</td><td>26</td><td>35%</td><td>48</td><td>—</td><td></td><td>🔴 부족</td></tr></table></div><div class='sec' id='sec-아동'><h2>아동 <span class='chip'>담당 조한익</span> <span class='chip2'>진척 43% · 티켓 11건</span></h2><table><tr><th>아이템</th><th>계획(M)</th><th>매입(M)</th><th>진척</th><th>잔여(M)</th><th>주간증가</th><th>정체(주)</th><th>상태</th></tr><tr class='rd'><td class='l'>패딩다운</td><td>348</td><td>86</td><td>25%</td><td>262</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>세트내의</td><td>162</td><td>22</td><td>14%</td><td>140</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>면바지</td><td>201</td><td>95</td><td>47%</td><td>106</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>긴팔티</td><td>102</td><td>19</td><td>19%</td><td>83</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>코트</td><td>50</td><td>9</td><td>18%</td><td>41</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>ACC</td><td>56</td><td>18</td><td>32%</td><td>38</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>가방</td><td>37</td><td>5</td><td>13%</td><td>33</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>청바지</td><td>35</td><td>11</td><td>32%</td><td>24</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>후드</td><td>35</td><td>14</td><td>39%</td><td>22</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>니트</td><td>39</td><td>19</td><td>49%</td><td>20</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>셔츠블라우스</td><td>30</td><td>13</td><td>43%</td><td>17</td><td>—</td><td></td><td>🔴 부족</td></tr></table></div><div class='sec' id='sec-잡화'><h2>잡화 <span class='chip'>담당 지연홍</span> <span class='chip2'>진척 12% · 티켓 3건</span></h2><table><tr><th>아이템</th><th>계획(M)</th><th>매입(M)</th><th>진척</th><th>잔여(M)</th><th>주간증가</th><th>정체(주)</th><th>상태</th></tr><tr class='rd'><td class='l'>ACC</td><td>711</td><td>21</td><td>3%</td><td>690</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>가방</td><td>726</td><td>115</td><td>16%</td><td>611</td><td>—</td><td></td><td>🔴 부족</td></tr><tr class='rd'><td class='l'>머플러</td><td>87</td><td>4</td><td>5%</td><td>83</td><td>—</td><td></td><td>🔴 부족</td></tr></table></div>
+<div class=note>
+상태(자동): 🟢움직임=이번주 발주 증가 / 🟡정체=증가 0 / ⚫방치=2주 연속 증가 0 / 🔴부족=첫 측정<br>
+기준: 진척 50% 미만 아이템만 표시 · 여성=회사 OTB판+매입보고전, 남성=회사 OTB판 분류분(자라·마시모 미분류 955M 제외), 아동·잡화=발주관리<br>
+담당: 여성-백서현 / 남성-한정훈 / 아동-조한익 / 잡화-지연홍
+</div></html>
