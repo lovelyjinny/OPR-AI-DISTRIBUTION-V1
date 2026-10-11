@@ -226,6 +226,16 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
 
 /* ── 모바일 탭 ── */
 .mobile-tab { display: none; }
+/* 2026-10-11: 맨 위 직영/키즈 전환 */
+:root { --switch-h: 46px; }
+body { padding-top: var(--switch-h); }
+.sidebar { top: var(--switch-h); height: calc(100vh - var(--switch-h)); }
+.app-switch { position: fixed; top: 0; left: 0; right: 0; height: var(--switch-h); z-index: 500; background: #0B1220; display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+.app-switch button { border: 1.5px solid rgba(255,255,255,0.25); background: transparent; color: rgba(255,255,255,0.75); font: 700 14px 'Noto Sans KR', sans-serif; padding: 6px 22px; border-radius: 8px; cursor: pointer; }
+.app-switch button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.kids-view { display: none; position: fixed; top: var(--switch-h); left: 0; right: 0; bottom: 0; z-index: 400; background: var(--bg); }
+.kids-view.on { display: block; }
+.kids-view iframe { width: 100%; height: 100%; border: 0; display: block; }
 
 @media (max-width: 768px) {
   .sidebar { display: none; }
@@ -243,6 +253,14 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
 </style>
 </head>
 <body>
+<!-- 2026-10-11: 직영 / 키즈 전환. 키즈는 키즈 분배 프로그램(kids.html)을 그대로 띄움 — 계산은 각자, 공통 파일(가용재고·매출상세·일재고)만 공유 -->
+<div class="app-switch">
+  <button id="sw-adult" class="on" onclick="switchApp('adult')">직영</button>
+  <button id="sw-kids" onclick="switchApp('kids')">키즈</button>
+</div>
+<div class="kids-view" id="kids-view">
+  <iframe id="kids-frame" src="kids.html" title="키즈 분배" onload="window.kidsFrameLoaded && kidsFrameLoaded()"></iframe>
+</div>
 <div class="app">
 
 <!-- 사이드바 -->
@@ -259,9 +277,6 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
     </div>
     <div class="nav-item" id="nav-result" onclick="showPanel('result',this)">
       <span class="nav-icon">📊</span> 분배 결과
-    </div>
-    <div class="nav-item" id="nav-kids" onclick="showPanel('kids',this)">
-      <span class="nav-icon">🧸</span> 키즈 분배
     </div>
     <div class="nav-divider"></div>
     <div class="nav-section">관리</div>
@@ -282,7 +297,6 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
 <div class="mobile-tab">
   <div class="mobile-tab-item active" onclick="showPanel('dist',this)"><span class="tab-icon">⚡</span>분배</div>
   <div class="mobile-tab-item" onclick="showPanel('result',this)"><span class="tab-icon">📊</span>결과</div>
-  <div class="mobile-tab-item" onclick="showPanel('kids',this)"><span class="tab-icon">🧸</span>키즈</div>
   <div class="mobile-tab-item" onclick="showPanel('stores',this)"><span class="tab-icon">🏪</span>매장</div>
   <div class="mobile-tab-item" onclick="showPanel('display',this)"><span class="tab-icon">📐</span>진열량</div>
   <div class="mobile-tab-item" onclick="showPanel('settings',this)"><span class="tab-icon">⚙️</span>설정</div>
@@ -379,11 +393,6 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
 </div>
 
 <!-- 분배 결과 패널 -->
-<!-- 2026-10-11: 픽스 키즈 분배를 같은 화면에 (계산은 키즈 프로그램 그대로, 파일만 공유) -->
-<div class="panel" id="panel-kids" style="padding:0;max-width:none">
-  <iframe id="kids-frame" src="kids.html" title="키즈 분배" style="width:100%;height:100vh;border:0;display:block" onload="window.kidsFrameLoaded && kidsFrameLoaded()"></iframe>
-</div>
-
 <div class="panel" id="panel-result">
   <div class="page-header">
     <div class="page-title">분배 결과</div>
@@ -1473,6 +1482,14 @@ function showPanel(id, el) {
 const SHARED_KEYS = ['inv','sales','avail'];
 function kidsWin() { try { const w = document.getElementById('kids-frame')?.contentWindow; return (w && w.kidsBridge) ? w : null; } catch(e) { return null; } }
 function shareToKids(key, file) { const w = kidsWin(); if (w && SHARED_KEYS.includes(key)) w.kidsBridge.setFile(key, file); }
+function switchApp(which) {
+  const kids = which === 'kids';
+  document.getElementById('kids-view').classList.toggle('on', kids);
+  document.getElementById('sw-kids').classList.toggle('on', kids);
+  document.getElementById('sw-adult').classList.toggle('on', !kids);
+  try { localStorage.setItem('opr_app_view', which); } catch(e) {}
+}
+try { if (localStorage.getItem('opr_app_view') === 'kids') window.addEventListener('DOMContentLoaded', () => switchApp('kids')); } catch(e) {}
 function kidsFrameLoaded() { for (const k of SHARED_KEYS) if (files[k]) shareToKids(k, files[k]); }
 function oprShareFromKids(key, file) {
   if (!SHARED_KEYS.includes(key) || files[key]) return;
