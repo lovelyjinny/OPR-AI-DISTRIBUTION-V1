@@ -313,6 +313,10 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
       </div>
       <div id="store-checklist" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     </div>
+    <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid var(--border);margin-top:8px">
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">🏷️ 분배할 카테고리 <span style="font-weight:400;color:var(--text3)">(체크한 카테고리만 분배 · 마지막 분배일도 카테고리별로 기록)</span></div>
+      <div id="cat-checklist" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
   </div>
 
   <!-- 날씨 배너 -->
@@ -471,7 +475,7 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
       <div class="card-title">매장별 분배 현황</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>매장</th><th>플랜트</th><th>여성</th><th>남성</th><th>골드라벨(여)</th><th>골드라벨(남)</th><th>잡화</th><th>슈즈</th><th>아동</th><th>합계</th></tr></thead>
+          <thead><tr><th>매장</th><th>플랜트</th><th>여성</th><th>남성</th><th>잡화</th><th>아동</th><th>합계</th></tr></thead>
           <tbody id="store-table"></tbody>
         </table>
       </div>
@@ -599,7 +603,7 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
     <div class="card-title">매장별 카테고리 진열량</div>
     <div class="table-wrap display-table">
       <table>
-        <thead><tr><th>매장</th><th>여성</th><th>남성</th><th>골드라벨(여)</th><th>골드라벨(남)</th><th>잡화</th><th>슈즈</th><th>아동</th></tr></thead>
+        <thead><tr><th>매장</th><th>여성</th><th>남성</th><th>잡화</th><th>아동</th></tr></thead>
         <tbody id="display-table-body"></tbody>
       </table>
     </div>
@@ -740,7 +744,7 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
     <div style="background:#f9fafb;padding:10px;border-radius:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <div>
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase">마지막 주2회 분배일</div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase">마지막 분배일 (카테고리별)</div>
           <div id="last-dist-date" style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px">-</div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="resetLastDistDate()" title="기록 초기화 (다음 주2회 분배 시 매출 파일 전체 사용)">🗑️ 기록 초기화</button>
@@ -790,7 +794,75 @@ function pickFile(key) {
 }
 
 // ── 상수 (v7: 새 7조닝 체계) ──────────────────────────────────────────
-const CAT_LABELS = ['여성','남성','골드라벨(여)','골드라벨(남)','잡화','슈즈','아동'];
+// v8 fix(2026-10-11): 분배 카테고리 = 회사 4셀(여성/남성/잡화/아동). 골드라벨·신발은 여성/남성에 포함
+const CAT_LABELS = ['여성','남성','잡화','아동'];
+// 옛 7조닝 진열량 키 → 4셀 (저장값·적정재고 파일 호환용)
+const OLD_ZONE_TO_CELL = {'골드라벨(여)':'여성','골드라벨(남)':'남성','슈즈':'남성'};
+
+// 회사 4셀 분류 — 매출 대시보드 _cell4_rule.sql 그대로 옮김 (규칙 바뀌면 둘 다 고칠 것)
+//   mc: MC코드, mcName: MC 이름(예 '여성_캐쥬얼_가디건'), brand: 브랜드명, bg: 구매그룹명
+const MC_NAME = {};   // MC코드 → MC이름 (일재고·매출 파일에서 수집, 가용재고엔 MC이름이 없어서)
+const STYLE_BG = {};  // 상품코드 → 구매그룹명 (일재고·가용재고에서 수집, 매출 파일엔 구매그룹이 없어서)
+function cell4(mc, mcName, brand, bg) {
+  mc = String(mc||'').trim().toUpperCase() || '#';
+  const n = String(mcName||'').toUpperCase(), b = String(brand||'').toUpperCase(), g = String(bg||'').toUpperCase();
+  const has = (t, ...ws) => ws.some(w => t.includes(w));
+  const m2 = mc.substring(0,2), g2 = mc.charAt(1), digit = /^[0-9]/.test(mc);
+  if (b === '지정되지 않음' && mc === '#') return '조정';
+  if (m2 === '1C' || m2 === '1L') return '잡화';
+  if (has(b,'47브랜드','뉴에라','NEWERA')) return '남성';
+  if (has(b,'메종미네드','MAISON MINED') && has(n,'잡화')) return '남성';
+  if (has(b,'안지크','ANSICH','비씨비지','BCBG')) return '여성';
+  if (has(n,'운동화','구두','슬리퍼','쪼리','샌들','샌달','부츠','로퍼','스니커','단화','뮬','블로퍼','펌프스','모카신','워커')) {
+    if (['1W','2W','1L'].includes(m2)) return '여성';
+    if (['1M','2M'].includes(m2)) return '남성';
+    if (['1K','1C'].includes(m2)) return '아동';
+    if (digit && g2 === 'W') return '여성';
+    if (digit && g2 === 'M') return '남성';
+    if (digit && (g2 === 'K' || g2 === 'C')) return '아동';
+    if (n.startsWith('여성')) return '여성';
+    if (n.startsWith('남성')) return '남성';
+    return '남성';
+  }
+  if (n.startsWith('아동') || n.startsWith('캐릭터') || (digit && (g2 === 'K' || g2 === 'C')) || has(g,'아동','키즈','캐릭터')) return '아동';
+  if (has(b,'언더웨어') && has(b,'캘빈','CALVIN')) {
+    if (['1W','2W','1L'].includes(m2)) return '여성';
+    if (['1M','2M'].includes(m2)) return '남성';
+    if (['1K','1C'].includes(m2)) return '아동';
+    if (n.startsWith('여성')) return '여성';
+    if (n.startsWith('남성')) return '남성';
+    return '잡화';
+  }
+  if (has(n,'잡화','언더웨어') || has(g,'잡화')) return '잡화';
+  if (n.startsWith('남성') || n.startsWith('골드라벨(남성)')) return '남성';
+  if (n.startsWith('골드라벨(여성)') || n.startsWith('여성')) return '여성';
+  if (has(g,'남성')) return '남성';
+  if (has(g,'여성')) return '여성';
+  if (has(g,'스포츠','이노베이션','캐주얼','제화','비아트','젠토','데이슨')) return '남성';
+  if (has(g,'럭셔리','컨템포러리','명품','매스티지')) return '여성';
+  if (['1M','2M'].includes(m2)) return '남성';
+  if (['1W','2W','1L'].includes(m2)) return '여성';
+  if (['1K','1C'].includes(m2)) return '아동';
+  if (has(n,'가방','지갑','파우치','캐리어')) return '잡화';
+  if (has(n,'원피스','스커트','블라우스','레깅스')) return '여성';
+  if (has(n,'셔츠','정장','넥타이')) return '남성';
+  if (mc.substring(2,4) === 'AC') return '잡화';
+  if (has(n,'ACC','악세','모자','머플러','스카프','양말')) return '잡화';
+  if (has(b,'LF종합관')) return '여성';
+  if (has(b,'오클리','OAKLEY')) return '남성';
+  return '미분류';
+}
+// 저장된 진열량에 옛 7조닝 키(골드라벨·슈즈)가 있으면 4셀로 합침
+function foldDisplayQty(dq) {
+  for (const k of Object.keys(dq)) {
+    const [store, zone] = k.split('__');
+    const cell = OLD_ZONE_TO_CELL[zone];
+    if (!cell) continue;
+    dq[store+'__'+cell] = (dq[store+'__'+cell]||0) + (dq[k]||0);
+    delete dq[k];
+  }
+  return dq;
+}
 
 // MCH2 → 조닝 매핑 (BW 표준 + 확장)
 const MCH2_CAT = {
@@ -1096,16 +1168,20 @@ const files = {inv:null, inv2:null, inv3:null, sales:null, avail:null, avail2:nu
 let resultData = null;
 let weatherCtx = null;
 
-// 진열량 (강서점은 역기획 보고 기준 7조닝, 다른 매장은 기본값)
+// 진열량 = 매장 카테고리별 상한 (재고가 진열량보다 적을 때만 모자란 만큼 분배)
+// v8 fix(2026-10-11): 점별 진열량 취합(점별진열량취합0821, 조닝→4셀 지니 확정 08-21) 값으로 교체
+//   원본: 얼로케이터\아이템 모니터링\진열량.json (br_cat). 순천점은 진열량 미제출이라 0 → 분배 안 됨
+//   (옛 강서 역기획값: 여성 113,300 / 남성 118,400 / 잡화 10,000 / 아동 5,500)
+const DISPLAY_QTY_VER = '0821';  // 진열량 자료가 바뀌면 이 값을 올려야 브라우저 저장값 대신 새 기본값이 적용됨
 let displayQty = {
-  // 강서점 v7 7조닝 (역기획 기준)
-  '강서점__여성':95000,
-  '강서점__남성':95000,
-  '강서점__골드라벨(여)':18300,
-  '강서점__골드라벨(남)':13300,
-  '강서점__잡화':10000,
-  '강서점__슈즈':10100,
-  '강서점__아동':5500,
+  '천호2점__여성':4535, '천호2점__남성':4467, '천호2점__잡화':1798,
+  '강서점__여성':6880, '강서점__남성':6863, '강서점__잡화':10438, '강서점__아동':1015,
+  '송파점__여성':3549, '송파점__남성':4013, '송파점__잡화':1694,
+  '강남점__여성':1087, '강남점__남성':2035, '강남점__잡화':758,
+  '분당점__여성':2937, '분당점__남성':2418, '분당점__잡화':816,
+  '불광점__여성':2780, '불광점__남성':3000, '불광점__잡화':300,
+  '수원터미널점__여성':1700, '수원터미널점__남성':2350, '수원터미널점__잡화':1130,
+  '동수원점__여성':3070, '동수원점__남성':4350, '동수원점__잡화':1115,
 };
 let customStores = [];
 
@@ -1113,6 +1189,7 @@ let customStores = [];
 let appSettings = {
   distMode: 'all',              // 'all' (강서=모델점(데일리) / 8개점=주2회 자동 적용)
   selectedStores: [],            // 분배 대상 매장 plant 코드 배열
+  selectedCats: ['여성','남성','잡화'],  // v8 fix(2026-10-11): 오늘 분배할 카테고리 (아동은 원래 분배 제외)
   includeChildren: true,         // 아동 포함 (기본 ON)
   includeZara: false,            // 자라/마시모두띠 포함 (기본 OFF)
   excludedItems: [],             // v8 fix(2026-06-09): 출고 제한 목록 (MC 코드 또는 상품명 키워드)
@@ -1178,30 +1255,24 @@ function renderHolidaysUI() {
       ).join('');
     }
   }
-  // v7: 마지막 분배일 표시 (현재 모드 기반)
+  // v8 fix(2026-10-11): 마지막 분배일 표시 — 모드×카테고리별
   const ld = document.getElementById('last-dist-date');
   if (ld) {
-    const isDaily = appSettings.distMode === 'daily';
-    const storageKey = isDaily ? 'opr_v7_lastDistDate_daily' : 'opr_v7_lastDistDate_weekly';
-    const last = localStorage.getItem(storageKey);
-    const modeLabel = isDaily ? '데일리' : '주2회';
-    if (last) {
-      const dt = new Date(last + 'T00:00:00');
-      const dows = ['일','월','화','수','목','금','토'];
-      ld.innerHTML = `${last} <span style="font-size:11px;color:var(--text3);font-weight:500">(${dows[dt.getDay()]}요일, ${modeLabel} 모드)</span>`;
-    } else {
-      ld.innerHTML = `<span style="color:var(--text3);font-style:italic;font-weight:500">기록 없음 (${modeLabel} 첫 실행 시 매출 파일 전체 사용)</span>`;
-    }
+    const dows = ['일','월','화','수','목','금','토'];
+    const fmt = d => d ? `${d}(${dows[new Date(d+'T00:00:00').getDay()]})` : '<span style="color:var(--text3);font-weight:500">기록 없음</span>';
+    ld.innerHTML = [['weekly','주2회'],['daily','데일리']].map(([m,lab]) =>
+      `<div style="font-size:12px;margin-top:2px">${lab}: ` + DIST_CATS.map(c => `${c} ${fmt(getLastDist(m, c))}`).join(' · ') + '</div>'
+    ).join('');
   }
 }
 
-// v7: 마지막 분배일 초기화 (현재 모드 기반)
+// v8 fix(2026-10-11): 마지막 분배일 초기화 — 모든 모드·카테고리 기록 삭제
 function resetLastDistDate() {
-  const isDaily = appSettings.distMode === 'daily';
-  const modeLabel = isDaily ? '데일리' : '주2회';
-  if (!confirm(`${modeLabel} 모드의 마지막 분배일 기록을 초기화하시겠습니까?\n\n다음 ${modeLabel} 분배 실행 시 매출 파일의 전체 기간이 사용됩니다.`)) return;
-  const storageKey = isDaily ? 'opr_v7_lastDistDate_daily' : 'opr_v7_lastDistDate_weekly';
-  localStorage.removeItem(storageKey);
+  if (!confirm('마지막 분배일 기록을 모두 초기화하시겠습니까?\n(주2회·데일리, 여성·남성·잡화 전부)\n\n다음 분배 때 매출 파일의 전체 기간이 사용됩니다.')) return;
+  for (const m of ['daily','weekly']) {
+    localStorage.removeItem(`opr_v7_lastDistDate_${m}`);
+    for (const c of DIST_CATS) localStorage.removeItem(lastDistKey(m, c));
+  }
   renderHolidaysUI();
   alert('초기화되었습니다');
 }
@@ -1211,6 +1282,7 @@ function saveSettings() {
   try {
     localStorage.setItem('opr_v7_settings', JSON.stringify(appSettings));
     localStorage.setItem('opr_v7_displayqty', JSON.stringify(displayQty));
+    localStorage.setItem('opr_displayqty_ver', DISPLAY_QTY_VER);
     localStorage.setItem('opr_v7_holidays', JSON.stringify(customHolidays));
     localStorage.setItem('opr_v7_stores', JSON.stringify(STORES));
   } catch(e){}
@@ -1220,7 +1292,7 @@ function loadSettings() {
     const s = localStorage.getItem('opr_v7_settings');
     if (s) Object.assign(appSettings, JSON.parse(s));
     const dq = localStorage.getItem('opr_v7_displayqty');
-    if (dq) Object.assign(displayQty, JSON.parse(dq));
+    if (dq && localStorage.getItem('opr_displayqty_ver') === DISPLAY_QTY_VER) Object.assign(displayQty, foldDisplayQty(JSON.parse(dq)));
     const h = localStorage.getItem('opr_v7_holidays');
     if (h) customHolidays = JSON.parse(h);
     const st = localStorage.getItem('opr_v7_stores');
@@ -1784,42 +1856,39 @@ function weatherMult(st, w) {
   return 1.0;
 }
 function seasonMonthPriority(smCode) {
-  // v7+: 계절월 정책
-  // 숫자(P 차수): 4월 분배 시 4P 메인 / 5P 선행 / 3P 보충 / 나머지 제외
-  // 알파벳: B(봄)/S(여름)/A(연중) 분배 가능 (1.0배) / W(겨울)/F(가을) 제외
+  // v8 fix(2026-10-11): 계절월 필터 FW 대응
+  //  숫자/T·N·D(10·11·12월): 이번달·다음달·지난달만 분배 (연말→연초 넘어가는 차이도 계산, 예: 1월 실행 시 12월물=지난달)
+  //  알파벳: DIST_SEASON='FW' → 봄(B)·여름(S)만 제외, 나머지(F·W·A 등) 분배
+  //          DIST_SEASON='SS' → 가을(F)·겨울(W)만 제외, 나머지 분배
+  //  계절월 없음(신상은 매장 미입고라 대부분 없음) → 분배 (시즌코드 3·4·9면 나가야 하므로)
   // BW는 "0001"~"0009" 형태 또는 "1"~"9" → 앞의 0 제거
   let key = String(smCode||'').trim().toUpperCase();
   if (/^0+\d+$/.test(key)) key = String(parseInt(key));
-  
-  // 빈값/특수문자 제외
-  if (!key || key === '#') return {mult: 0, label: '제외(빈값)', isInvalid: true};
-  
-  // 숫자 P 차수
-  const num = parseInt(key);
-  if (!isNaN(num) && String(num) === key && num >= 1 && num <= 9) {
+
+  if (!key || key === '#') return {mult: 1.0, label: '계절월없음'};
+
+  const num = SEASON_MONTH_MAP[key];
+  if (num) {
     const cur = new Date().getMonth() + 1;
-    const diff = num - cur;
+    const diff = (num - cur + 12) % 12;
     if (diff === 0) return {mult: 1.5, label: num + 'P(메인-이번달)'};
     if (diff === 1) return {mult: 1.2, label: num + 'P(다음달-선행)'};
-    if (diff === -1) return {mult: 1.0, label: num + 'P(지난달-보충)'};
+    if (diff === 11) return {mult: 1.0, label: num + 'P(지난달-보충)'};
     return {mult: 0, label: num + 'P(제외-차이큼)', isInvalid: true};
   }
-  
-  // 알파벳 (계절 코드)
-  if (key === 'B') return {mult: 1.0, label: '봄(B)'};
-  if (key === 'S') return {mult: 1.0, label: '여름(S)'};
-  if (key === 'A') return {mult: 1.0, label: '연중(A)'};
-  if (key === 'W') return {mult: 0, label: '겨울(W)-제외', isInvalid: true};
-  if (key === 'F') return {mult: 0, label: '가을(F)-제외', isInvalid: true};
-  if (key === 'N') return {mult: 0, label: 'N-제외', isInvalid: true};
-  
-  return {mult: 0, label: '제외(' + key + ')', isInvalid: true};
+
+  const NAMES = {B:'봄(B)', S:'여름(S)', F:'가을(F)', W:'겨울(W)', A:'연중(A)'};
+  const BLOCK = DIST_SEASON === 'FW' ? ['B','S'] : ['F','W'];
+  if (BLOCK.includes(key)) return {mult: 0, label: NAMES[key] + '-제외', isInvalid: true};
+  return {mult: 1.0, label: NAMES[key] || key};
 }
 function getSeasonType(c) {
-  if (c===null||c===undefined) return 'ALL';
-  if (c instanceof Date) return 'ALL';
+  // v8 fix(2026-06-24): 'ALL'은 진짜 시즌리스(끝자리 9)에만.
+  // v8 fix(2026-10-11): 불명확/빈 값은 '기타' → FW·SS 어느 쪽 분배에도 안 들어감
+  if (c===null||c===undefined) return '기타';
+  if (c instanceof Date) return '기타';
   c = String(c).replace(/,/g,'').trim(); // 천단위 구분자 제거
-  if (!c) return 'ALL';
+  if (!c) return '기타';
   if (c.includes('SS')) return 'SS';
   if (c.includes('FW')) return 'FW';
   // 숫자형 코드 (예: 20232, 20232.0) → parseInt로 정수 변환 후 끝자리 추출
@@ -1827,8 +1896,16 @@ function getSeasonType(c) {
   const last = isNaN(num) ? c.slice(-1) : String(num).slice(-1);
   if (['1','2'].includes(last)) return 'SS';
   if (['3','4'].includes(last)) return 'FW';
-  if (last === '9') return 'ALL';  // v8 fix(2026-06-18): 끝자리 9 = 시즌리스(잡화/캐릭터)
-  return 'ALL';
+  if (last === '9') return 'ALL';  // v8 fix(2026-06-18): 끝자리 9 = 진짜 시즌리스(잡화/캐릭터)
+  return '기타';  // v8 fix(2026-10-11): 0/5/6/7/8 같은 불명확 끝자리는 분배 제외
+}
+
+// v8 fix(2026-10-11): 분배 시즌 스위치 — 'FW'=시즌코드 끝자리 3·4·9 분배(SS 제외) / 'SS'=1·2·9 분배(FW 제외)
+// 내년 SS 시즌(3월~)에는 이 한 줄만 'SS'로 바꾸면 됨
+const DIST_SEASON = 'FW';
+function isDistSeason(season, brandName) {
+  if (season === DIST_SEASON || season === 'ALL') return true;
+  return isSeasonBypassByBrand(brandName);
 }
 function getDowMult() {
   const dow = new Date().getDay();
@@ -1911,6 +1988,7 @@ function parseInventory(wb) {
   let iMch2=ci('MCH2'), iStyle=ci('스타일코드');
   let iSeason = ci('계절연도'), iSmMonth = ci('계절월');
   let iBrand = ci('오리지날브랜드'), iMC = ci('MC(자재그룹)');
+  const iBG = ci('구매그룹');  // v8 fix(2026-10-11): 4셀 분류용 (이름은 옆 칸)
   // 폴백: MCH2 컬럼 위치 기준 상대 위치로 탐색
   if (iMch2 >= 0) {
     if (iSeason<0) iSeason = iMch2 + 6;
@@ -1977,9 +2055,13 @@ function parseInventory(wb) {
 
     const mcVal = iMC>=0 ? String(r[iMC]||'').trim() : '';
     const brandVal = iBrand>=0 ? String(r[iBrand+1]||'').trim() : '';
+    const mcNameVal = iMC>=0 ? String(r[iMC+1]||'').trim() : '';
+    const bgVal = iBG>=0 ? String(r[iBG+1]||'').trim() : '';
+    if (mcVal && mcNameVal && !MC_NAME[mcVal]) MC_NAME[mcVal] = mcNameVal;
+    if (bgVal && !STYLE_BG[style]) STYLE_BG[style] = bgVal;
     if (!inv[style]) inv[style]={
       name:String(r[iStyle+1]||'').trim(),
-      mch2, cat:MCH2_CAT[mch2]||mch2,
+      mch2, cat:cell4(mcVal, mcNameVal, brandVal, bgVal),
       mc: mcVal,
       brand: brandVal,
       season:getSeasonType(seasonCode),
@@ -2004,7 +2086,7 @@ function parseInventory(wb) {
     if (plant) {
       inv[style].store_qty[plant]=(inv[style].store_qty[plant]||0)+qty;
       // 매장별 카테고리/브랜드/시즌 집계
-      const qCat = MCH2_CAT[mch2]||mch2;
+      const qCat = inv[style].cat;
       const qSeason = getSeasonType(String(r[iSeason]||'').trim());
       const qBrand = iBrand>=0 ? String(r[iBrand]||'').trim() : '기타';
       if (!inv[style].store_cat_qty[plant]) inv[style].store_cat_qty[plant]={};
@@ -2085,7 +2167,8 @@ function parseSales(wb) {
   // 카테고리별 매장 집계 (반응 분배용)
   const catStore4w = {}, catStore1m = {}, catStoreTotal = {};
   const stylePlant4w = {};  // style->plant->4w sales
-  const mch2col = h.findIndex(v=>String(v||'').includes('MCH2')); // 루프 밖으로 이동
+  const mccol = h.findIndex(v=>String(v||'').includes('MC(자재그룹)'));
+  const brcol = h.findIndex(v=>String(v||'').includes('오리지날브랜드'));
   const recent4 = salesCols.length>=4 ? salesCols.slice(-4) : salesCols;
   const recent9 = salesCols.length>=9 ? salesCols.slice(-9) : salesCols;
   for (let i=hdr+1;i<rows.length;i++) {
@@ -2093,9 +2176,10 @@ function parseSales(wb) {
     const style=String(r[iStyle]).trim();
     const plant=extractPlant(String(r[iStore]||''));
     if (!plant||!STORES[plant]) continue;
-    const mch2 = mch2col>=0 ? String(r[mch2col]||'').trim() : '';
-    const cat = MCH2_QUOTA_CAT[mch2] || MCH2_CAT[mch2] || '';
-    if (!cat) continue;
+    const mcv = mccol>=0 ? String(r[mccol]||'').trim() : '';
+    if (mcv && mccol>=0 && r[mccol+1] && !MC_NAME[mcv]) MC_NAME[mcv] = String(r[mccol+1]).trim();
+    const cat =cell4(mcv, mccol>=0 ? r[mccol+1] : '', brcol>=0 ? r[brcol+1] : '', STYLE_BG[style]||'');  // v8 fix(2026-10-11): 4셀
+    if (!CAT_LABELS.includes(cat)) continue;
     const q4w  = recent4.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
     const q1m  = recent9.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
     const qtot = salesCols.reduce((s,c)=>s+(parseFloat(r[c])||0),0);
@@ -2136,6 +2220,7 @@ function parseAvailableStock(wb) {
   const iSeasonM = h.findIndex(v => String(v||'').trim() === '계절');
   const iBrand   = h.findIndex(v => String(v||'').includes('오리지날 브랜드') || String(v||'').includes('오리지날브랜드'));
   const iBrandName = h.findIndex(v => String(v||'').includes('브랜드 내역') || String(v||'').includes('브랜드내역'));
+  const iBGName  = h.findIndex(v => String(v||'').includes('구매그룹 내역') || String(v||'').includes('구매그룹내역'));
   
   // BW 가용재고 표준 컬럼 fallback (한글 매칭 실패 시)
   if (iMat < 0) iMat = 1;        // 자재
@@ -2178,8 +2263,11 @@ function parseAvailableStock(wb) {
     if (isNew) totalNew++;
     if (!mcVal) mcMissing++;
 
+    const bgName = iBGName >= 0 ? String(r[iBGName]||'').trim() : '';
+    if (bgName && !STYLE_BG[style]) STYLE_BG[style] = bgName;
     if (!avail[style]) {
       avail[style] = {
+        cell: cell4(mcVal, MC_NAME[mcVal]||'', brandNameRaw, bgName),  // v8 fix(2026-10-11): 회사 4셀
         name: iName >= 0 ? String(r[iName]||'').trim() : '',
         avg_price: iPrice >= 0 ? (parseFloat(r[iPrice])||0) : 0,
         total_qty: 0,
@@ -2227,7 +2315,7 @@ function parseQuota(wb) {
   if (iCat < 0) iCat = 1;
   if (iDisplay < 0) iDisplay = 7;
 
-  const CATS = CAT_LABELS;
+  const CATS = [...CAT_LABELS, ...Object.keys(OLD_ZONE_TO_CELL)];  // 옛 7조닝 파일도 읽음(호출부에서 4셀로 합침)
   const dq = {};
   let curStore = null;
 
@@ -2241,7 +2329,7 @@ function parseQuota(wb) {
     if (curStore && CATS.includes(c2)) {
       const raw = r[iDisplay];
       const val = typeof raw === 'number' ? raw : parseFloat(String(raw||'').replace(/,/g,''))||0;
-      dq[curStore + '__' + c2] = val;
+      dq[curStore + '__' + c2] = (dq[curStore + '__' + c2]||0) + val;
     }
   }
   return dq;
@@ -2285,7 +2373,7 @@ function buildSimilarIndex(inv) {
     idx[i.mch2].push({
       mat:m, name:i.name, season:i.season,
       season_month:i.season_month, size:i.size, color:i.color, mch2:i.mch2,
-      mc:i.mc||'',
+      mc:i.mc||'', cat:i.cat,
       init_price:i.init_price||i.avg_price,
       cur_price:i.cur_price||i.avg_price,
       avg_price:i.avg_price,
@@ -2318,7 +2406,7 @@ function findSimilar(mat, info, inv, priceRange, remaining, similarIdx, plant, s
     if (baseCur>0 && Math.abs(iCur - baseCur) / baseCur > priceRange) continue;
 
     // 매장수요 게이트: 대체품 MC가 이 매장에서 안 팔리면 제외
-    const mcVel = plantMc[i.mc||''] || 0;
+    const mcVel = plantMc[(i.cat||'')+'|'+(i.mc||'')] || plantMc[i.mc||''] || 0;  // v8 fix(2026-10-11): 키='셀|MC'
     if (mcVel <= 0) continue;
 
     // 점수: 우선순위 MCH2(필수) → MC아이템 → 시즌 → 사이즈+컬러
@@ -2367,20 +2455,17 @@ function distribute(inv, salesData, availStock, weather) {
   const remaining = {};
   for (const [mat, info] of Object.entries(availStock)) remaining[mat] = info.total_qty;
 
-  // 계절월 유효성 체크: P차수(숫자)만 분배. 알파벳/공백 + 차이 큰 P 제외
+  // 계절월 유효성 체크 (v8 fix 2026-10-11: FW 대응 — seasonMonthPriority 참고)
   function isValidSeasonMonth(smCode) {
-    const p = seasonMonthPriority(smCode);
-    if (p.isInvalid) return false;
-    if (p.mult <= 0) return false;
-    return true;
+    return !seasonMonthPriority(smCode).isInvalid;
   }
 
   // 매장별 카테고리 현재재고 계산 (SS 재고만)
   const storeCatQty = {};
   for (const [style, info] of Object.entries(inv)) {
-    if ((info.season !== 'SS' && info.season !== 'ALL' && !isSeasonBypassByBrand(info.brand_name))) continue; // SS 재고만
-    const cat = MCH2_QUOTA_CAT[info.mch2] || info.cat;
-    if (!cat) continue;
+    if (!isDistSeason(info.season, info.brand_name)) continue; // 분배 시즌 재고만
+    const cat = info.cat;  // v8 fix(2026-10-11): 회사 4셀
+    if (!CAT_LABELS.includes(cat)) continue;
     for (const [plant, qty] of Object.entries(info.store_qty||{})) {
       if (!storeCatQty[plant]) storeCatQty[plant] = {};
       storeCatQty[plant][cat] = (storeCatQty[plant][cat]||0) + qty;
@@ -2395,7 +2480,7 @@ function distribute(inv, salesData, availStock, weather) {
   //   2) 매장×MC 채울 양 = MC 판매수량 (카테고리 부족분 안에서 비례 축소)
   //   3) 각 MC 채우는 우선순위: 신상SS → 이월SS → 유사스타일 (모두 동일 MC 안에서)
   //   4) 한 스타일에 매장당 BASE_QTY(3개) 초과 분배 안 됨 → 사이즈 균형 유지
-  //   5) FW는 완전 제외, 아동 카테고리 제외
+  //   5) DIST_SEASON 시즌만 분배(현재 FW=3·4·9, SS 제외), 아동 카테고리 제외
   
   const _selectedStores = appSettings.selectedStores && appSettings.selectedStores.length > 0
     ? appSettings.selectedStores : Object.keys(STORES);
@@ -2410,7 +2495,7 @@ function distribute(inv, salesData, availStock, weather) {
     mcStorePlantSummary: {},
   };
   for (const [mat, info] of Object.entries(availStock)) {
-    if ((info.season !== 'SS' && info.season !== 'ALL' && !isSeasonBypassByBrand(info.brand_name)) || !info.mc) continue;
+    if (!isDistSeason(info.season, info.brand_name) || !info.mc) continue;
     const target = info.is_new ? diag.newSSAvailByMc : diag.carrySSAvailByMc;
     target[info.mc] = (target[info.mc]||0) + (info.total_qty||0);
   }
@@ -2432,6 +2517,7 @@ function distribute(inv, salesData, availStock, weather) {
 
     for (const cat of CAT_LABELS) {
       if (cat === '아동') continue;                      // 아동 분배 제외
+      if (!(appSettings.selectedCats||DIST_CATS).includes(cat)) continue;  // v8 fix(2026-10-11): 선택한 카테고리만
       const disp = displayQty[storeName+'__'+cat] || 0;
       if (disp <= 0) { diag.catSkipReasons.dispZero++; continue; }
       const cur  = (storeCatQty[plant]||{})[cat] || 0;
@@ -2444,11 +2530,13 @@ function distribute(inv, salesData, availStock, weather) {
       const plantMcSales = (mcStorePlant||{})[plant] || {};
       const mcDemand = {};
       let totalMcDemand = 0;
-      for (const [mc, soldQty] of Object.entries(plantMcSales)) {
-        const mch2  = mc.length >= 2 ? mc.substring(0, 2) : '';
-        const mcCat = MCH2_QUOTA_CAT[mch2] || MCH2_CAT[mch2] || '';
+      for (const [key, soldQty] of Object.entries(plantMcSales)) {
+        // v8 fix(2026-10-11): 키 = '셀|MC' (옵션3 예측은 MC만 → MC이름으로 셀 판정)
+        let mcCat, mc;
+        if (key.includes('|')) [mcCat, mc] = key.split('|');
+        else { mc = key; mcCat = cell4(mc, MC_NAME[mc]||'', '', ''); }
         if (mcCat !== cat) continue;
-        mcDemand[mc] = soldQty;
+        mcDemand[mc] = (mcDemand[mc]||0) + soldQty;
         totalMcDemand += soldQty;
       }
       if (totalMcDemand === 0) { diag.catSkipReasons.totalDemandZero++; continue; }
@@ -2471,11 +2559,12 @@ function distribute(inv, salesData, availStock, weather) {
         const newStyles = Object.entries(availStock)
           .filter(([mat, info]) => {
             if (!info.is_new) return false;
-            if ((info.season !== 'SS' && info.season !== 'ALL' && !isSeasonBypassByBrand(info.brand_name))) return false;
+            if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
+            if (!isDistSeason(info.season, info.brand_name)) return false;
+            if (!isValidSeasonMonth(info.season_month)) return false;
             if (info.mc !== mc) return false;
             if (info.total_qty < MIN_AVAIL) return false;
             if ((remaining[mat]||0) <= 0) return false;
-            if (!isValidSeasonMonth(info.season_month)) return false;
             return true;
           })
           .sort((a,b) => {
@@ -2519,13 +2608,14 @@ function distribute(inv, salesData, availStock, weather) {
           const newStylesMc4 = Object.entries(availStock)
             .filter(([mat, info]) => {
               if (!info.is_new) return false;
-              if ((info.season !== 'SS' && info.season !== 'ALL' && !isSeasonBypassByBrand(info.brand_name))) return false;
+              if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
+              if (!isDistSeason(info.season, info.brand_name)) return false;
+              if (!isValidSeasonMonth(info.season_month)) return false;
               if (!info.mc || info.mc.length < 4) return false;
               if (info.mc === mc) return false;                // 동일 MC는 이미 처리됨
               if (info.mc.substring(0, 4) !== mc4) return false; // 같은 MC4만
               if (info.total_qty < MIN_AVAIL) return false;
               if ((remaining[mat]||0) <= 0) return false;
-              if (!isValidSeasonMonth(info.season_month)) return false;
               return true;
             })
             .sort((a,b) => {
@@ -2567,10 +2657,11 @@ function distribute(inv, salesData, availStock, weather) {
         const carryStyles = Object.entries(availStock)
           .filter(([mat, info]) => {
             if (info.is_new) return false;
-            if ((info.season !== 'SS' && info.season !== 'ALL' && !isSeasonBypassByBrand(info.brand_name))) return false;
+            if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
+            if (!isDistSeason(info.season, info.brand_name)) return false;
+            if (!isValidSeasonMonth(info.season_month)) return false;
             if (info.mc !== mc) return false;
             if ((remaining[mat]||0) <= 0) return false;
-            if (!isValidSeasonMonth(info.season_month)) return false;
             return true;
           })
           .sort((a,b) => {
@@ -2616,12 +2707,13 @@ function distribute(inv, salesData, availStock, weather) {
           const carryStylesMc4 = Object.entries(availStock)
             .filter(([mat, info]) => {
               if (info.is_new) return false;
-              if ((info.season !== 'SS' && info.season !== 'ALL' && !isSeasonBypassByBrand(info.brand_name))) return false;
+              if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
+              if (!isDistSeason(info.season, info.brand_name)) return false;
+              if (!isValidSeasonMonth(info.season_month)) return false;
               if (!info.mc || info.mc.length < 4) return false;
               if (info.mc === mc) return false;
               if (info.mc.substring(0, 4) !== mc4) return false;
               if ((remaining[mat]||0) <= 0) return false;
-              if (!isValidSeasonMonth(info.season_month)) return false;
               return true;
             })
             .sort((a,b) => {
@@ -2680,7 +2772,7 @@ function distribute(inv, salesData, availStock, weather) {
             const simStyle = findSimilar(mat, fallbackInv, inv, PRICE_RANGE, remaining, similarIdx, plant, stylePlant4w, mcStorePlant, simUsage, SIM_MAX_USE);
             if (!simStyle) continue;
             const simAvail = availStock[simStyle.mat];
-            if (!simAvail || (simAvail.season !== 'SS' && simAvail.season !== 'ALL' && !isSeasonBypassByBrand(simAvail.brand_name))) continue;   // v8 fix(2026-06-24): SS + 시즌리스 + 시즌 무관 브랜드 통과
+            if (!simAvail || simAvail.cell !== cat || !isDistSeason(simAvail.season, simAvail.brand_name)) continue;   // v8 fix(2026-10-11): 분배 시즌(DIST_SEASON) + 시즌리스 + 시즌 무관 브랜드 통과
             if ((remaining[simStyle.mat]||0) <= 0) continue;
             if (storeAlloc.has(simStyle.mat)) continue;  // v8 fix(2026-06-05): 유사스타일도 매장당 중복 차단
 
@@ -3024,10 +3116,12 @@ function extractSalesByPeriod(wb, startDate, endDate) {
     const style = String(r[iStyle]).trim();
     const plant = extractPlant(String(r[iStore]||''));
     if (!plant || !STORES[plant]) { dropPlant++; continue; }
-    const mch2 = String(r[iMch2]||'').trim();
-    const cat = MCH2_QUOTA_CAT[mch2] || MCH2_CAT[mch2] || '';
-    if (!cat) { dropCat++; continue; }
     const mcVal = String(r[iMC]||'').trim(); // v7+: MC 단위 집계용
+    const mcNameVal = String(r[iMC+1]||'').trim();
+    if (mcVal && mcNameVal && !MC_NAME[mcVal]) MC_NAME[mcVal] = mcNameVal;
+    // v8 fix(2026-10-11): 회사 4셀 (구매그룹은 매출 파일에 없어 상품코드로 일재고·가용재고에서 찾음)
+    const cat = cell4(mcVal, mcNameVal, String(r[iBrandSafe+1]||'').trim(), STYLE_BG[style]||'');
+    if (!CAT_LABELS.includes(cat)) { dropCat++; continue; }
     
     const qty = parseFloat(r[iQty]) || 0;
     if (qty <= 0) continue;
@@ -3053,7 +3147,8 @@ function extractSalesByPeriod(wb, startDate, endDate) {
     // v7+: 매장×MC 판매수량 집계 (MC 단위 분배 기준)
     if (mcVal) {
       if (!mcStorePlant[plant]) mcStorePlant[plant]={};
-      mcStorePlant[plant][mcVal]=(mcStorePlant[plant][mcVal]||0)+qty;
+      const mcKey = cat + '|' + mcVal;  // v8 fix(2026-10-11): 같은 MC라도 브랜드 규칙으로 셀이 갈릴 수 있어 셀까지 키로
+      mcStorePlant[plant][mcKey]=(mcStorePlant[plant][mcKey]||0)+qty;
     }
     // v8 fix(2026-06-24): 매장×브랜드 판매수량 집계 (같은 MC 안에서 브랜드 우선 분배용)
     const brandName = String(r[iBrandSafe+1]||'').trim();
@@ -3077,9 +3172,43 @@ function extractSalesByPeriod(wb, startDate, endDate) {
   };
 }
 
+// v8 fix(2026-10-11): 마지막 분배일을 '모드×카테고리'로 따로 기록
+//   (잡화만 분배한 날짜가 여성 매출 기간을 잘라먹지 않도록). 카테고리 기록이 없으면 옛 공용 기록 사용
+function lastDistKey(mode, cat) { return `opr_v7_lastDistDate_${mode}_${cat}`; }
+function getLastDist(mode, cat) {
+  return localStorage.getItem(lastDistKey(mode, cat)) || localStorage.getItem(`opr_v7_lastDistDate_${mode}`);
+}
+
+// 선택 카테고리별로 매출 기간을 정해 매장×'셀|MC' 수요를 합침
+//   plantsByMode = {daily:Set, weekly:Set}. 같은 기간은 한 번만 읽음
+function buildCatSales(wbSales, plantsByMode, cats) {
+  const cache = {}, periods = [], merged = {};
+  let base = null;
+  for (const [mode, plants] of Object.entries(plantsByMode)) {
+    if (!plants || plants.size === 0) continue;
+    for (const cat of cats) {
+      const pr = determineSalesPeriod(wbSales, mode, cat);
+      log(`  ${mode==='daily'?'데일리':'주2회'} · ${cat} 매출: ${pr.info}`,'info');
+      if (!pr.start || !pr.end) continue;
+      periods.push({mode, cat, end: pr.end});
+      const ck = pr.start + '~' + pr.end;
+      const sd = cache[ck] || (cache[ck] = extractSalesByPeriod(wbSales, pr.start, pr.end));
+      if (!base) base = sd;
+      for (const plant of plants) {
+        for (const [key, q] of Object.entries((sd.mcStorePlant||{})[plant]||{})) {
+          if (!key.startsWith(cat + '|')) continue;
+          (merged[plant] = merged[plant] || {})[key] = q;
+        }
+      }
+    }
+  }
+  return {base, mcStorePlant: merged, periods};
+}
+
 // ── 모드별 분배 기간 결정 ──
 // 매출상세분석의 일자 범위와 모드/마지막 분배일을 보고 추출 시작/끝 결정
-function determineSalesPeriod(wb, mode) {
+function determineSalesPeriod(wb, mode, cat) {
+  if (wb.__salesDates) return periodFromDates(wb.__salesDates, mode, cat);
   // 매출상세분석에서 가용한 일자 범위 먼저 스캔
   const ws = selectSheet(wb, '매출상세분석', '매출');
   const rows = sheetToRows(ws);
@@ -3119,6 +3248,10 @@ function determineSalesPeriod(wb, mode) {
     allDates.add(dStr);
   }
   const sortedDates = Array.from(allDates).sort();
+  wb.__salesDates = sortedDates;
+  return periodFromDates(sortedDates, mode, cat);
+}
+function periodFromDates(sortedDates, mode, cat) {
   if (sortedDates.length === 0) return {start:null, end:null, info:'일자 없음'};
   
   // D-1 = 매출 파일의 마지막 날 (=오늘 직전 영업일)
@@ -3127,7 +3260,7 @@ function determineSalesPeriod(wb, mode) {
   if (mode === 'daily') {
     // 데일리: 마지막 분배일 다음날 ~ D-1 (공휴일/주말 자동 누적)
     // 첫 실행이거나 lastDist 정보 없으면 → 월요일 분배는 금/토/일 3일치, 평일은 D-1만
-    const lastDist = localStorage.getItem('opr_v7_lastDistDate_daily');
+    const lastDist = getLastDist('daily', cat);
     if (lastDist && lastDist < d1) {
       // lastDist 다음날부터 D-1까지
       const ld = new Date(lastDist + 'T00:00:00');
@@ -3147,7 +3280,7 @@ function determineSalesPeriod(wb, mode) {
     return {start, end:d1, info:`데일리 첫 실행 (${start}~${d1})`};
   } else {
     // 주2회: 마지막 분배일 다음날 ~ D-1
-    const lastDist = localStorage.getItem('opr_v7_lastDistDate_weekly');
+    const lastDist = getLastDist('weekly', cat);
     if (lastDist) {
       // lastDist 다음날부터
       const ld = new Date(lastDist + 'T00:00:00');
@@ -3205,11 +3338,11 @@ function buildExcel(results, similar) {
     const q = getAdjustedQty(r.mat, r.plant, r.qty);
     storeStat[r.plant][r.cat]=(storeStat[r.plant][r.cat]||0)+q;
   }
-  const storeRows=[['플랜트','매장명','여성','남성','골드라벨(여)','골드라벨(남)','잡화','슈즈','아동','합계']];
+  const storeRows=[['플랜트','매장명',...CAT_LABELS,'합계']];
   for (const [plant,info] of Object.entries(STORES)) {
     const s=storeStat[plant]||{};
     const total=Object.values(s).reduce((a,b)=>a+b,0);
-    storeRows.push([plant,info.name,s['여성']||0,s['남성']||0,s['골드라벨(여)']||0,s['골드라벨(남)']||0,s['잡화']||0,s['슈즈']||0,s['아동']||0,total]);
+    storeRows.push([plant,info.name,...CAT_LABELS.map(c=>s[c]||0),total]);
   }
   const ws4=XLSX.utils.aoa_to_sheet(storeRows);
   XLSX.utils.book_append_sheet(wb,ws4,'매장별현황');
@@ -3316,6 +3449,7 @@ async function runDistribution() {
         info.season_month = sm;
         smApplied++;
       } else {
+        info.season_month = '';  // v8 fix(2026-10-11): 매핑 없으면 비움 ('계절' 시즌코드 0003 등을 계절월로 오인 방지)
         smMissing++;
       }
     }
@@ -3343,6 +3477,9 @@ async function runDistribution() {
     if (!appSettings.selectedStores || appSettings.selectedStores.length === 0) {
       // selectedStores가 비어있으면 모든 매장 자동 선택
       appSettings.selectedStores = Object.keys(STORES);
+    }
+    if (!appSettings.selectedCats || appSettings.selectedCats.length === 0) {
+      throw new Error('분배할 카테고리를 하나 이상 선택하세요');
     }
     const _selStores = appSettings.selectedStores.map(p=>STORES[p]?.name||p).join(', ');
     log(`// 분배 대상 매장: ${_selStores}`, 'info');
@@ -3417,91 +3554,28 @@ async function runDistribution() {
     }
     
     let distResult;
-    let period = null;  // 분배일 저장용 (single mode)
     if (window._opt3Used) {
       distResult = window._distResult;
       window._opt3Used = false;
-    } else if (appSettings.distMode === 'all') {
-      // 자유 선택 모드: 선택된 매장의 mode 속성에 따라 자동으로 매출 기간 분리 적용
-      const selectedSet = new Set(appSettings.selectedStores);
-      const dailyPlants = new Set(
-        Object.entries(STORES)
-          .filter(([p,s]) => (s.mode||'weekly') === 'daily' && selectedSet.has(p))
-          .map(([p]) => p)
-      );
-      const weeklyPlants = new Set(
-        Object.entries(STORES)
-          .filter(([p,s]) => (s.mode||'weekly') === 'weekly' && selectedSet.has(p))
-          .map(([p]) => p)
-      );
-      const hasDaily = dailyPlants.size > 0;
-      const hasWeekly = weeklyPlants.size > 0;
-      
-      log(`// 매장 모드 분리: 데일리 ${dailyPlants.size}개 / 주2회 ${weeklyPlants.size}개`,'info');
-      
-      let dailyPeriod = null, weeklyPeriod = null;
-      let dailySales = null, weeklySales = null;
-      
-      if (hasDaily) {
-        dailyPeriod = determineSalesPeriod(wbSales, 'daily');
-        log(`  데일리 매출: ${dailyPeriod.info}`,'info');
-        if (dailyPeriod.start && dailyPeriod.end) {
-          dailySales = extractSalesByPeriod(wbSales, dailyPeriod.start, dailyPeriod.end);
-        }
-      }
-      if (hasWeekly) {
-        weeklyPeriod = determineSalesPeriod(wbSales, 'weekly');
-        log(`  주2회 매출: ${weeklyPeriod.info}`,'info');
-        if (weeklyPeriod.start && weeklyPeriod.end) {
-          weeklySales = extractSalesByPeriod(wbSales, weeklyPeriod.start, weeklyPeriod.end);
-        }
-      }
-      
-      // mcStorePlant 합치기: 데일리 plant는 dailySales / 주2회 plant는 weeklySales
-      const mergedMcStorePlant = {};
-      if (dailySales && dailySales.mcStorePlant) {
-        for (const [plant, mcs] of Object.entries(dailySales.mcStorePlant)) {
-          if (dailyPlants.has(plant)) mergedMcStorePlant[plant] = mcs;
-        }
-      }
-      if (weeklySales && weeklySales.mcStorePlant) {
-        for (const [plant, mcs] of Object.entries(weeklySales.mcStorePlant)) {
-          if (weeklyPlants.has(plant)) mergedMcStorePlant[plant] = mcs;
-        }
-      }
-      
-      salesData = weeklySales || dailySales || salesData;
-      salesData.mcStorePlant = mergedMcStorePlant;
-      
-      const totalMcQty = Object.values(mergedMcStorePlant).reduce((s, mcs) => s + Object.values(mcs).reduce((a,b)=>a+b, 0), 0);
-      log(`✓ 합산: ${Object.keys(mergedMcStorePlant).length}개 매장 / 총 매출 수요 ${Math.round(totalMcQty).toLocaleString()}개`,'ok');
-      
-      distResult = await new Promise(resolve => setTimeout(() => resolve(distribute(inv, salesData, availStock, weatherCtx)), 50));
-      
-      const _allowedSet = new Set(appSettings.selectedStores);
-      distResult.results = distResult.results.filter(r => _allowedSet.has(r.plant));
-      distResult.initCount = distResult.results.filter(r=>r.dist_type==='init').length;
-      distResult.reactCount = distResult.results.filter(r=>r.dist_type==='react').length;
-      distResult.initQty = distResult.results.filter(r=>r.dist_type==='init').reduce((s,r)=>s+r.qty,0);
-      distResult.reactQty = distResult.results.filter(r=>r.dist_type==='react').reduce((s,r)=>s+r.qty,0);
-      
-      window._allModePeriods = {dailyPeriod, weeklyPeriod};
     } else {
-      period = determineSalesPeriod(wbSales, appSettings.distMode);
-      log(`// 매출 기간: ${period.info}`,'info');
-      if (period.start && period.end) {
-        // 모드별 기간 매출로 salesData 재추출 (parseSales와 동일 형태)
-        const periodSales = extractSalesByPeriod(wbSales, period.start, period.end);
-        log(`✓ 기간 매출 추출: ${periodSales.totalDays}일 / ${Object.keys(periodSales.sales).length}개 스타일`,'ok');
-        // 기존 salesData를 기간 매출로 교체
-        salesData = periodSales;
-      } else {
-        log(`⚠ 기간 결정 실패 → 전체 매출 사용`,'warn');
-      }
-      
+      // v8 fix(2026-10-11): 매장 모드(데일리/주2회) × 선택 카테고리별로 매출 기간을 따로 잡음
+      const selectedSet = new Set(appSettings.selectedStores);
+      const plantsOf = mode => new Set(Object.entries(STORES)
+        .filter(([p,s]) => selectedSet.has(p) && (appSettings.distMode === 'all' ? (s.mode||'weekly') === mode : appSettings.distMode === mode))
+        .map(([p]) => p));
+      const plantsByMode = {daily: plantsOf('daily'), weekly: plantsOf('weekly')};
+      log(`// 매장 모드 분리: 데일리 ${plantsByMode.daily.size}개 / 주2회 ${plantsByMode.weekly.size}개 · 카테고리 ${appSettings.selectedCats.join(', ')}`,'info');
+
+      const cs = buildCatSales(wbSales, plantsByMode, appSettings.selectedCats);
+      if (cs.base) salesData = cs.base;
+      salesData.mcStorePlant = cs.mcStorePlant;
+      window._catPeriods = cs.periods;
+
+      const totalMcQty = Object.values(cs.mcStorePlant).reduce((s, mcs) => s + Object.values(mcs).reduce((a,b)=>a+b, 0), 0);
+      log(`✓ 합산: ${Object.keys(cs.mcStorePlant).length}개 매장 / 총 매출 수요 ${Math.round(totalMcQty).toLocaleString()}개`,'ok');
+
       distResult = await new Promise(resolve => setTimeout(() => resolve(distribute(inv, salesData, availStock, weatherCtx)), 50));
-      
-      // 선택된 매장만 필터링
+
       const _allowedSet = new Set(appSettings.selectedStores);
       distResult.results = distResult.results.filter(r => _allowedSet.has(r.plant));
       distResult.initCount = distResult.results.filter(r=>r.dist_type==='init').length;
@@ -3509,7 +3583,7 @@ async function runDistribution() {
       distResult.initQty = distResult.results.filter(r=>r.dist_type==='init').reduce((s,r)=>s+r.qty,0);
       distResult.reactQty = distResult.results.filter(r=>r.dist_type==='react').reduce((s,r)=>s+r.qty,0);
     }
-    
+
     const {results, similar, initCount, reactCount, initQty, reactQty} = distResult;
     const totalQty = results.reduce((s,r)=>s+r.qty,0);
     log(`✓ 초도 분배: ${initCount}건 / ${initQty.toLocaleString()}개`,'ok');
@@ -3526,29 +3600,14 @@ async function runDistribution() {
     resultData = {wb, results, similar, initCount, reactCount, initQty, reactQty, today, dow, totalQty, availTotal};
     setProgress(100); log('✓ 완료!','ok'); await tick();
 
-    // v7: 분배 완료 시 마지막 분배일 저장 (다음 분배 시 사용)
-    if (appSettings.distMode === 'all' && window._allModePeriods) {
-      // 전체 모드: 양쪽 모두 갱신
+    // v8 fix(2026-10-11): 분배 완료 시 마지막 분배일을 모드×카테고리별로 저장
+    if (window._catPeriods) {
       try {
-        const {dailyPeriod, weeklyPeriod} = window._allModePeriods;
-        if (dailyPeriod && dailyPeriod.end) {
-          localStorage.setItem('opr_v7_lastDistDate_daily', dailyPeriod.end);
-          log(`✓ 마지막 데일리 분배일 저장: ${dailyPeriod.end}`,'ok');
-        }
-        if (weeklyPeriod && weeklyPeriod.end) {
-          localStorage.setItem('opr_v7_lastDistDate_weekly', weeklyPeriod.end);
-          log(`✓ 마지막 주2회 분배일 저장: ${weeklyPeriod.end}`,'ok');
-        }
-        window._allModePeriods = null;
+        for (const pr of window._catPeriods) localStorage.setItem(lastDistKey(pr.mode, pr.cat), pr.end);
+        const saved = [...new Set(window._catPeriods.map(pr => `${pr.mode==='daily'?'데일리':'주2회'} ${pr.cat} ${pr.end}`))];
+        if (saved.length) log(`✓ 마지막 분배일 저장: ${saved.join(' / ')}`,'ok');
       } catch(e) {}
-    } else if (period && period.end) {
-      try {
-        const storageKey = appSettings.distMode === 'daily' 
-          ? 'opr_v7_lastDistDate_daily' 
-          : 'opr_v7_lastDistDate_weekly';
-        localStorage.setItem(storageKey, period.end);
-        log(`✓ 마지막 ${appSettings.distMode==='daily'?'데일리':'주2회'} 분배일 저장: ${period.end}`,'ok');
-      } catch(e) {}
+      window._catPeriods = null;
     }
 
     showPanel('result', document.getElementById('nav-result'));
@@ -3613,7 +3672,7 @@ function renderResult() {
   for (const [plant,info] of Object.entries(STORES)) {
     const s=storeStat[plant]||{};
     const total=Object.values(s).reduce((a,b)=>a+b,0);
-    tbody.innerHTML+=`<tr><td><b>${info.name}</b></td><td style="color:var(--text3);font-size:12px">${plant}</td><td>${s['여성']||0}</td><td>${s['남성']||0}</td><td>${s['골드라벨(여)']||0}</td><td>${s['골드라벨(남)']||0}</td><td>${s['잡화']||0}</td><td>${s['슈즈']||0}</td><td>${s['아동']||0}</td><td><b>${total}</b></td></tr>`;
+    tbody.innerHTML+=`<tr><td><b>${info.name}</b></td><td style="color:var(--text3);font-size:12px">${plant}</td><td>${s['여성']||0}</td><td>${s['남성']||0}</td><td>${s['잡화']||0}</td><td>${s['아동']||0}</td><td><b>${total}</b></td></tr>`;
   }
 
   renderDetailTable(results);
@@ -3668,7 +3727,7 @@ function renderDailyZoneItemTable(results) {
   const rows = Object.values(agg).sort((a, b) => {
     if (a.plant !== b.plant) return a.plant < b.plant ? -1 : 1;
     if (a.zone !== b.zone) {
-      const order = ['여성','남성','골드라벨(여)','골드라벨(남)','잡화','슈즈','아동'];
+      const order = CAT_LABELS;
       return order.indexOf(a.zone) - order.indexOf(b.zone);
     }
     return (b.newMatch+b.newExt+b.carMatch+b.carExt) - (a.newMatch+a.newExt+a.carMatch+a.carExt);
@@ -3862,10 +3921,10 @@ function showStoreDetail(plant) {
   for (const [style, si] of Object.entries(invData)) {
     const sq = (si.store_qty||{})[plant]||0;
     if (sq<=0) continue;
-    const cat = MCH2_CAT[si.mch2]||si.mch2||'기타';
+    const cat = si.cat||'기타';
     const season = si.season||'기타';
-    // v8 fix(2026-06-18): catQty는 SS + 시즌리스(ALL) — 잡화 카테고리 자연 포함
-    if (season === 'SS' || season === 'ALL') catQty[cat]=(catQty[cat]||0)+sq;
+    // v8 fix(2026-10-11): catQty는 분배 시즌(DIST_SEASON) + 시즌리스(ALL) — 분배 엔진과 동일 기준
+    if (isDistSeason(season, si.brand_name)) catQty[cat]=(catQty[cat]||0)+sq;
     seasonQty[season]=(seasonQty[season]||0)+sq;
     // 신상: season_year 앞 4자리 >= 2026
     const yr = Math.floor(parseInt(String(si.season_year||'0').replace(/[^0-9]/g,''))||0);
@@ -3999,10 +4058,10 @@ function saveDisplayQty() {
   saveDisplayQtyToStorage(); alert('진열량이 저장되었습니다');
 }
 function saveDisplayQtyToStorage() {
-  try {localStorage.setItem('opr_display_qty', JSON.stringify(displayQty));} catch(e){}
+  try {localStorage.setItem('opr_display_qty', JSON.stringify(displayQty)); localStorage.setItem('opr_displayqty_ver', DISPLAY_QTY_VER);} catch(e){}
 }
 function loadDisplayQtyFromStorage() {
-  try {const d=localStorage.getItem('opr_display_qty'); if(d) displayQty=JSON.parse(d);} catch(e){}
+  try {const d=localStorage.getItem('opr_display_qty'); if(d && localStorage.getItem('opr_displayqty_ver') === DISPLAY_QTY_VER) displayQty=foldDisplayQty(JSON.parse(d));} catch(e){}
 }
 
 // ── 진열량 직접 테스트 ────────────────────────────────────────────────
@@ -4013,7 +4072,7 @@ async function loadQuotaFile(input) {
   statusEl.style.color = 'var(--text3)';
   try {
     const wb = await readXLSX(file);
-    const dq = parseQuota(wb);
+    const dq = foldDisplayQty(parseQuota(wb));
     const count = Object.keys(dq).length;
     if (count === 0) {
       statusEl.textContent = '⚠ 진열량 데이터를 찾지 못했습니다';
@@ -4103,6 +4162,28 @@ function renderStoreChecklist() {
   
   const badge = document.getElementById('store-count-badge');
   if (badge) badge.textContent = appSettings.selectedStores.length + '개';
+  renderCatChecklist();
+}
+
+// v8 fix(2026-10-11): 카테고리 선택 (아동은 분배 대상 아님)
+const DIST_CATS = CAT_LABELS.filter(c => c !== '아동');
+function renderCatChecklist() {
+  const wrap = document.getElementById('cat-checklist');
+  if (!wrap) return;
+  if (!Array.isArray(appSettings.selectedCats)) appSettings.selectedCats = [...DIST_CATS];
+  wrap.innerHTML = DIST_CATS.map(cat => {
+    const on = appSettings.selectedCats.includes(cat);
+    return `<label style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:${on?'#3b5bdb':'#fff'};color:${on?'#fff':''};border:1.5px solid ${on?'#3b5bdb':'var(--border)'};border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">
+      <input type="checkbox" ${on?'checked':''} onchange="toggleCat('${cat}')" style="margin:0"> ${cat}
+    </label>`;
+  }).join('');
+}
+function toggleCat(cat) {
+  const list = appSettings.selectedCats;
+  const i = list.indexOf(cat);
+  if (i >= 0) list.splice(i, 1); else list.push(cat);
+  saveSettings();
+  renderCatChecklist();
 }
 
 function toggleStore(plant) {
