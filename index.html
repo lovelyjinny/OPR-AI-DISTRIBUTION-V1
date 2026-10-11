@@ -260,6 +260,9 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
     <div class="nav-item" id="nav-result" onclick="showPanel('result',this)">
       <span class="nav-icon">📊</span> 분배 결과
     </div>
+    <div class="nav-item" id="nav-kids" onclick="showPanel('kids',this)">
+      <span class="nav-icon">🧸</span> 키즈 분배
+    </div>
     <div class="nav-divider"></div>
     <div class="nav-section">관리</div>
     <div class="nav-item" id="nav-stores" onclick="showPanel('stores',this)">
@@ -279,6 +282,7 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
 <div class="mobile-tab">
   <div class="mobile-tab-item active" onclick="showPanel('dist',this)"><span class="tab-icon">⚡</span>분배</div>
   <div class="mobile-tab-item" onclick="showPanel('result',this)"><span class="tab-icon">📊</span>결과</div>
+  <div class="mobile-tab-item" onclick="showPanel('kids',this)"><span class="tab-icon">🧸</span>키즈</div>
   <div class="mobile-tab-item" onclick="showPanel('stores',this)"><span class="tab-icon">🏪</span>매장</div>
   <div class="mobile-tab-item" onclick="showPanel('display',this)"><span class="tab-icon">📐</span>진열량</div>
   <div class="mobile-tab-item" onclick="showPanel('settings',this)"><span class="tab-icon">⚙️</span>설정</div>
@@ -375,6 +379,11 @@ select { background: var(--surface2); border: 1.5px solid var(--border); color: 
 </div>
 
 <!-- 분배 결과 패널 -->
+<!-- 2026-10-11: 픽스 키즈 분배를 같은 화면에 (계산은 키즈 프로그램 그대로, 파일만 공유) -->
+<div class="panel" id="panel-kids" style="padding:0;max-width:none">
+  <iframe id="kids-frame" src="kids.html" title="키즈 분배" style="width:100%;height:100vh;border:0;display:block" onload="window.kidsFrameLoaded && kidsFrameLoaded()"></iframe>
+</div>
+
 <div class="panel" id="panel-result">
   <div class="page-header">
     <div class="page-title">분배 결과</div>
@@ -1460,8 +1469,19 @@ function showPanel(id, el) {
 }
 
 // ── 파일 핸들 ──────────────────────────────────────────────────────────
+// 2026-10-11: 성인↔키즈 같은 입력파일 공유 (가용재고·매출상세·일재고). 상대 칸이 비어 있을 때만 채움
+const SHARED_KEYS = ['inv','sales','avail'];
+function kidsWin() { try { const w = document.getElementById('kids-frame')?.contentWindow; return (w && w.kidsBridge) ? w : null; } catch(e) { return null; } }
+function shareToKids(key, file) { const w = kidsWin(); if (w && SHARED_KEYS.includes(key)) w.kidsBridge.setFile(key, file); }
+function kidsFrameLoaded() { for (const k of SHARED_KEYS) if (files[k]) shareToKids(k, files[k]); }
+function oprShareFromKids(key, file) {
+  if (!SHARED_KEYS.includes(key) || files[key]) return;
+  handleFile({files:[file], value:''}, key);
+}
+
 function handleFile(input, key) {
   const file = input.files[0]; if (!file) return;
+  shareToKids(key, file);
   
   // ⚡ v7: 파일 슬롯 디버그 로그 (어떤 슬롯에 어떤 파일이 들어가는지 추적)
   console.log(`[파일업로드] ${key} 슬롯 → ${file.name} (${(file.size/1024).toFixed(1)}KB)`);
