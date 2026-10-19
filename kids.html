@@ -131,7 +131,7 @@ tr:hover td{background:var(--surface2)}
   <div class="logo">
     <div class="logo-tag">NC PICKS · KIDS</div>
     <div class="logo-title">키즈<br>자동분배 시스템</div>
-    <div class="logo-sub">픽스 키즈 15개 매장<br><span style="color:#FEE500;font-weight:700">v2.1 · 점직남</span></div>
+    <div class="logo-sub">픽스 키즈 13개 매장<br><span style="color:#FEE500;font-weight:700">v2.1 · 점직남</span></div>
   </div>
   <nav class="nav">
     <div class="nav-section">분배</div>
@@ -274,15 +274,16 @@ tr:hover td{background:var(--surface2)}
 
 <script>
 /* ══════════════ 설정/상수 (config.py 이식) ══════════════ */
-const STORES={'7204':'중계점','7209':'분당점','7215':'천호2점','8201':'일산점','8205':'평촌2점','8206':'강남점','8220':'창원점','8222':'부천점','8224':'송파점','8229':'부산대점','8231':'엑스코점','8237':'수원터미널점','8242':'신구로점','8243':'NC대전 유성점','8501':'쇼핑점'};
+// 2026-10-19: 엑스코점(8231)·신구로점(8242) 제외 — 키즈 판매 26.7월 이후 없음(지니 확정)
+const STORES={'7204':'중계점','7209':'분당점','7215':'천호2점','8201':'일산점','8205':'평촌2점','8206':'강남점','8220':'창원점','8222':'부천점','8224':'송파점','8229':'부산대점','8237':'수원터미널점','8243':'NC대전 유성점','8501':'쇼핑점'};
 const MODEL_STORE='7209';
 // 2026-10-11: 매장 등급(분배설정.xlsx '매장설정' 시트) — 필업 처리 순서. 예전엔 매장코드 순(중계 먼저)이었음
-const STORE_RANK={'7209':1,'8224':2,'8201':3,'8501':4,'7215':5,'8222':6,'8243':7,'8237':8,'8205':9,'8242':10,'8220':11,'8206':12,'7204':13,'8229':14,'8231':15};
+const STORE_RANK={'7209':1,'8224':2,'8201':3,'8501':4,'7215':5,'8222':6,'8243':7,'8237':8,'8205':9,'8220':11,'8206':12,'7204':13,'8229':14};
 function orderPlants(ps){return ps.slice().sort((a,b)=>((STORE_RANK[a]||99)-(STORE_RANK[b]||99))||((DEFAULT_DISP[b]||0)-(DEFAULT_DISP[a]||0)));}
 // 2026-10-11: 필업 분배 시즌 — FW 시즌엔 계절 3·4·9만 (SS 제외). 내년 SS 시즌엔 'SS'로
 const DIST_SEASON='FW';
 const NEW_STORES=new Set(['8201','8229','8243']);
-const DEFAULT_DISP={'7204':2340,'7209':8420,'7215':3140,'8201':1890,'8205':3010,'8206':1430,'8220':2060,'8222':3340,'8224':2990,'8229':2350,'8231':1680,'8237':2110,'8242':1750,'8243':1800,'8501':2530};
+const DEFAULT_DISP={'7204':2340,'7209':8420,'7215':3140,'8201':1890,'8205':3010,'8206':1430,'8220':2060,'8222':3340,'8224':2990,'8229':2350,'8237':2110,'8243':1800,'8501':2530};
 const DIRECT_BRANDS=['올리반','디즈니','해피버스','쁘띠뮤','삠뽀요','팬콧','아웃도어프로덕츠키즈'];
 const GENERAL_BRANDS=['헤지스키즈','포인터웍스'];
 const ZARA_BRANDS=['자라키즈'];
@@ -374,7 +375,7 @@ function parseInventory(wb){const rows=pickSheet(wb,'일재고분석');
     const pg=C.pgroup>=0?String(g(r,'pgroup')||'').trim():'';
     if(pg&&!KIDS_PGROUPS.has(pg))continue;                 // 키즈 구매그룹만 (성인 제외)
     const plant=extractPlant(g(r,'store'));
-    if(!plant||!STORES[plant])continue;                    // 픽스키즈 15개 매장만
+    if(!plant||!STORES[plant])continue;                    // 픽스키즈 13개 매장만
     const qty=num(g(r,'qty'));const sea=g(r,'season_yr');
     if(!inv[style]){inv[style]={name:String(g(r,'name')||'').trim(),brand:String(g(r,'brand')||'').trim(),mc:String(g(r,'mc')||'').trim(),mch2:String(g(r,'mch2')||'').trim(),pgroup:pg,season:getSeason(sea),season_code:seasonCode(sea),size:String(g(r,'size')||'').trim(),color:String(g(r,'color')||'').trim(),style_key:nameStyleKey(String(g(r,'brand')||'').trim(),g(r,'name')),name_color:nameColor(g(r,'name')),total_qty:0,store_qty:{}};}
     inv[style].total_qty+=qty;inv[style].store_qty[plant]=(inv[style].store_qty[plant]||0)+qty;}
