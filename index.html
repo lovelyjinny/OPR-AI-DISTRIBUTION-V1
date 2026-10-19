@@ -307,6 +307,8 @@ body { padding-top: var(--switch-h); }
 
 <!-- 분배 실행 패널 -->
 <div class="panel active" id="panel-dist">
+  <!-- 2026-10-11: 분배실행.bat(PC)로 열면 오늘 폴더 파일 자동 올림 결과 표시 -->
+  <div id="auto-load-banner" style="display:none;margin-bottom:14px;padding:12px 16px;border-radius:10px;background:#E8F9EF;border:1px solid #9BE3B8;font-size:13px;line-height:1.6"></div>
   <div class="page-header">
     <div class="page-title">분배 실행</div>
     <div class="page-sub">파일 3개를 업로드하고 분배를 실행하세요 <span style="color:var(--text3)">①②③ 필수</span></div>
@@ -337,16 +339,6 @@ body { padding-top: var(--switch-h); }
     </div>
   </div>
 
-  <!-- 날씨 배너 -->
-  <div class="weather-banner" id="weather-banner" style="display:none">
-    <div id="w-content" style="width:100%;display:flex;align-items:center;gap:16px">
-      <div class="w-temp" id="w-temp">--°</div>
-      <div class="w-info">
-        <div class="w-desc" id="w-desc"></div>
-        <div class="w-tags" id="w-tags"></div>
-      </div>
-    </div>
-  </div>
   <!-- 업로드 카드 -->
   <div class="upload-grid">
     <div id="card-inv" class="upload-card upload-card-1" onclick="pickFile('inv')">
@@ -645,11 +637,8 @@ body { padding-top: var(--switch-h); }
   <div class="card">
     <div class="card-title">분배 기준</div>
     <div class="setting-row"><div><div class="setting-label">스타일당 기본 분배량</div><div class="setting-desc">초도/반응 모두 적용되는 기본 수량</div></div><input type="number" id="cfg-base" value="3" min="1" max="10"></div>
-    <div class="setting-row"><div><div class="setting-label">초도 분배 비율 (%)</div><div class="setting-desc">신상품 가용재고 중 초도로 내보낼 비율</div></div><input type="number" id="cfg-init-ratio" value="80" min="10" max="100"></div>
-    <div class="setting-row"><div><div class="setting-label">초도 : 반응 출고 비율 (%)</div><div class="setting-desc">전체 출고 물량 중 초도 비율. 예) 70 → 초도 70% : 반응 30%</div></div><input type="number" id="cfg-init-react-ratio" value="60" min="10" max="90"></div>
 
     <div class="setting-row"><div><div class="setting-label">유사스타일 가격 허용 범위 (%)</div><div class="setting-desc">최초판매가 및 현판가 ±% 이내 스타일만 인정</div></div><input type="number" id="cfg-price" value="30" min="5" max="80"></div>
-    <div class="setting-row"><div><div class="setting-label">소량 재고 기준 (개)</div><div class="setting-desc">이 수량 미만이면 소량 처리</div></div><input type="number" id="cfg-small" value="20" min="5" max="100"></div>
   </div>
 
   <!-- 옵션 3: 연휴 보정 + 추세 반영 -->
@@ -699,15 +688,6 @@ body { padding-top: var(--switch-h); }
   <!-- v7: 분배 대상 토글 -->
   <div class="card">
     <div class="card-title">🎯 분배 대상 설정</div>
-    <div class="setting-row" style="cursor:pointer" onclick="toggleSetting('includeChildren')">
-      <div>
-        <div class="setting-label">아동 (1K) 포함</div>
-        <div class="setting-desc">키즈/아동 카테고리(1K) 분배 포함 여부 (기본 ON)</div>
-      </div>
-      <div id="toggle-children" style="position:relative;width:50px;height:28px;background:#10b981;border-radius:14px;transition:background .2s">
-        <div style="position:absolute;top:2px;left:24px;width:24px;height:24px;background:#fff;border-radius:50%;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
-      </div>
-    </div>
     <div class="setting-row" style="cursor:pointer" onclick="toggleSetting('includeZara')">
       <div>
         <div class="setting-label">자라 / 마시모두띠 포함</div>
@@ -720,7 +700,7 @@ body { padding-top: var(--switch-h); }
     <div class="setting-row" style="display:block">
       <div style="margin-bottom:8px">
         <div class="setting-label">🚫 출고 제한 목록</div>
-        <div class="setting-desc">한 줄에 하나씩 (또는 쉼표로 구분). 대소문자 무관. <strong>2글자 룰</strong>(예: JP, HD, HZ)은 <strong>MC 코드만</strong> 검사(상품명에 우연히 들어간 글자 제외). <strong>3글자 이상</strong>(예: 패딩, 스웨터, 1WCASW)은 MC와 상품명 둘 다 검사. 빈칸이면 제한 없음.</div>
+        <div class="setting-desc">한 줄에 하나씩 (또는 쉼표로 구분). 대소문자 무관. <strong>영문·숫자 2글자 이하</strong>(예: JP, HD, HZ)는 <strong>MC 코드만</strong> 검사(상품명에 우연히 들어간 글자 제외). 그 외(예: 패딩, 스웨터, 1WCASW)는 MC와 상품명 둘 다 검사. 빈칸이면 제한 없음.</div>
       </div>
       <textarea id="cfg-excluded-items" placeholder="예시:&#10;1WCASW&#10;패딩&#10;스웨터" style="width:100%;min-height:80px;font-size:12px;padding:8px;font-family:monospace;box-sizing:border-box" oninput="updateExcludedItems()"></textarea>
     </div>
@@ -739,19 +719,6 @@ body { padding-top: var(--switch-h); }
       <textarea id="cfg-season-bypass-brands" placeholder="예시:&#10;플레이블" style="width:100%;min-height:60px;font-size:12px;padding:8px;font-family:monospace;box-sizing:border-box" oninput="updateSeasonBypassBrands()"></textarea>
     </div>
   </div>
-  <div class="card">
-    <div class="card-title">요일별 가중치 (2025년 실적 기반)</div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:4px">
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">월</div><input type="number" id="dow-0" value="0.64" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">화</div><input type="number" id="dow-1" value="0.70" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">수</div><input type="number" id="dow-2" value="1.09" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">목</div><input type="number" id="dow-3" value="0.88" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">금</div><input type="number" id="dow-4" value="1.00" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">토</div><input type="number" id="dow-5" value="1.46" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-      <div style="text-align:center"><div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px">일</div><input type="number" id="dow-6" value="1.22" step="0.01" style="width:100%;text-align:center;padding:6px 4px"></div>
-    </div>
-  </div>
-  
   <!-- v7: 분배 이력 / 마지막 분배일 -->
   <div class="card">
     <div class="card-title">📆 분배 이력</div>
@@ -770,35 +737,7 @@ body { padding-top: var(--switch-h); }
     </div>
   </div>
   
-  <!-- v7: 공휴일 관리 -->
-  <div class="card">
-    <div class="card-title">📅 공휴일 관리 (2026)</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:10px">데일리 분배에서 공휴일은 자동으로 처리됩니다. 임시공휴일이 지정되면 아래에서 추가하세요.</div>
-    
-    <div style="background:#f9fafb;padding:10px;border-radius:8px;margin-bottom:10px">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">2026년 법정 공휴일 (자동 적용)</div>
-      <div id="default-holidays-list" style="display:flex;flex-wrap:wrap;gap:4px;font-size:11px"></div>
-    </div>
-    
-    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px">
-        <label class="form-label" style="font-size:11px">날짜</label>
-        <input type="date" id="custom-holiday-date" class="form-input" min="2026-01-01" max="2026-12-31">
-      </div>
-      <div style="flex:2;min-width:160px">
-        <label class="form-label" style="font-size:11px">사유</label>
-        <input type="text" id="custom-holiday-name" class="form-input" placeholder="예: 임시공휴일">
-      </div>
-      <button class="btn btn-navy btn-sm" onclick="addCustomHoliday()">➕ 추가</button>
-    </div>
-    
-    <div style="margin-top:10px">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">사용자 추가 공휴일</div>
-      <div id="custom-holidays-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-    </div>
-  </div>
-  
-  <button class="btn btn-navy btn-sm" onclick="alert('설정이 저장되었습니다')">설정 저장</button>
+  <button class="btn btn-navy btn-sm" onclick="saveCfgInputs(true)">설정 저장</button>
 </div>
 
 </div><!-- /main -->
@@ -1393,7 +1332,7 @@ function isExcludedItemByRule(mcCode, itemName) {
     if (!r) continue;
     const rUp = r.toUpperCase();
     if (mc && mc.indexOf(rUp) >= 0) return true;
-    if (rUp.length >= 3 && name && name.indexOf(rUp) >= 0) return true;
+    if (!/^[A-Z0-9]{1,2}$/.test(rUp) && name && name.indexOf(rUp) >= 0) return true;  // 2026-10-19: 영문·숫자 2글자 이하만 MC 전용, 한글 2글자(패딩 등)는 상품명도 검사
   }
   return false;
 }
@@ -1419,7 +1358,7 @@ function isAllowedItemByRule(mcCode, itemName) {
     if (!r) continue;
     const rUp = r.toUpperCase();
     if (mc && mc.indexOf(rUp) >= 0) return true;
-    if (rUp.length >= 3 && name && name.indexOf(rUp) >= 0) return true;
+    if (!/^[A-Z0-9]{1,2}$/.test(rUp) && name && name.indexOf(rUp) >= 0) return true;  // 2026-10-19: 영문·숫자 2글자 이하만 MC 전용, 한글 2글자(패딩 등)는 상품명도 검사
   }
   return false;
 }
@@ -1490,6 +1429,51 @@ function switchApp(which) {
   try { localStorage.setItem('opr_app_view', which); } catch(e) {}
 }
 try { if (localStorage.getItem('opr_app_view') === 'kids') window.addEventListener('DOMContentLoaded', () => switchApp('kids')); } catch(e) {}
+// 2026-10-11: PC에서 열었을 때(분배실행.bat → localhost) 날짜 폴더의 입력 파일 3개를 자동으로 올림
+//   웹 주소(github.io)에선 브라우저 보안상 불가 → 이 기능은 localhost에서만 동작
+async function autoLoadToday() {
+  if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
+  const banner = document.getElementById('auto-load-banner');
+  try {
+    const qs = location.search || '';
+    const info = await (await fetch('/today/list' + qs)).json();
+    const labels = {avail:'가용재고', inv:'일재고분석', sales:'매출상세분석'};
+    const got = [], miss = [];
+    for (const key of ['inv','sales','avail']) {
+      const name = (info.files || {})[key];
+      if (!name) { miss.push(labels[key]); continue; }
+      if (files[key]) continue;
+      const blob = await (await fetch('/today/file/' + key + qs)).blob();
+      handleFile({files:[new File([blob], name)], value:''}, key);
+      got.push(labels[key] + ' <b>' + name + '</b>');
+    }
+    banner.innerHTML = `📂 <b>${info.folder || '(날짜 폴더 없음)'}</b> 폴더에서 자동으로 올렸어요 (직영·키즈 공용)<br>` +
+      (got.length ? got.join(' · ') : '올린 파일 없음') +
+      (miss.length ? `<br><span style="color:#B45309">⚠ 없음: ${miss.join(', ')} — 아래 칸에 직접 올려주세요</span>` : '');
+    banner.style.display = 'block';
+  } catch(e) {
+    banner.innerHTML = '⚠ 오늘 파일 자동 올리기 실패: ' + e.message + ' — 아래 칸에 직접 올려주세요';
+    banner.style.background = '#FEF3C7'; banner.style.display = 'block';
+  }
+}
+window.addEventListener('load', autoLoadToday);
+
+// 2026-10-19: 설정 숫자칸 실제 저장 (예전 [설정 저장] 버튼은 알림만 띄우고 저장 안 했음)
+const CFG_IDS = ['cfg-base','cfg-price','cfg-min-avail','cfg-capa','cfg-max-per-sku','cfg-opt3-trend','cfg-opt3-weight','cfg-opt3-child','cfg-opt3-child-dates','cfg-opt3-holiday','cfg-opt3-mc1'];
+function saveCfgInputs(notify) {
+  const o = {};
+  CFG_IDS.forEach(id => { const el = document.getElementById(id); if (el) o[id] = el.value; });
+  try { localStorage.setItem('opr_v8_cfg', JSON.stringify(o)); } catch(e) {}
+  if (notify) alert('설정이 저장되었습니다');
+}
+function loadCfgInputs() {
+  let o = {};
+  try { o = JSON.parse(localStorage.getItem('opr_v8_cfg') || '{}'); } catch(e) {}
+  CFG_IDS.forEach(id => { const el = document.getElementById(id); if (el && o[id] != null) el.value = o[id]; });
+  CFG_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => saveCfgInputs(false)); });
+}
+window.addEventListener('DOMContentLoaded', loadCfgInputs);
+
 function kidsFrameLoaded() { for (const k of SHARED_KEYS) if (files[k]) shareToKids(k, files[k]); }
 function oprShareFromKids(key, file) {
   if (!SHARED_KEYS.includes(key) || files[key]) return;
@@ -2478,12 +2462,9 @@ function distribute(inv, salesData, availStock, weather) {
   const initResults=[], reactResults=[], similar=[];
   const simUsage = {};  // 유사스타일 대체품별 사용 라인수 (쏠림 방지)
   const BASE_QTY         = parseInt(document.getElementById('cfg-base').value)||3;
-  const INIT_RATIO       = (parseInt(document.getElementById('cfg-init-ratio').value)||80)/100;
-  const INIT_REACT_RATIO = (parseInt(document.getElementById('cfg-init-react-ratio').value)||60)/100; // 초도:반응 비율
   const PRICE_RANGE      = (parseInt(document.getElementById('cfg-price').value)||30)/100;
   const MIN_AVAIL        = parseInt(document.getElementById('cfg-min-avail').value)||1;
   const MAX_PER_SKU      = parseInt(document.getElementById('cfg-max-per-sku')?.value)||3;  // v7: SKU당 매장당 최대
-  const dowMult          = getDowMult();
 
   // 유사스타일 인덱스
   const similarIdx = buildSimilarIndex(inv);
@@ -3349,13 +3330,13 @@ function buildExcel(results, similar) {
   XLSX.utils.book_append_sheet(wb,ws1,'분배장(SAP업로드)');
 
   // 상세내역
-  const det=[['구분','상품코드','브랜드','브랜드명','MC','상품명','카테고리','시즌','계절월','출고우선순위','매장명','플랜트','배정수량','가용재고','적정재고','현재재고','이동평균가','날씨가중치','유사스타일']];
+  const det=[['구분','상품코드','브랜드','브랜드명','MC','상품명','카테고리','시즌','계절월','출고우선순위','매장명','플랜트','배정수량','가용재고','적정재고','현재재고','이동평균가','유사스타일']];
   for (const r of results) {
     const q = getAdjustedQty(r.mat, r.plant, r.qty);
     det.push([r.dist_type==='init'?'초도':'반응', r.mat, r.brand||'', r.brand_name||'', r.mc||'', r.name, r.cat, r.season,
       r.season_month||'', r.season_month_label||'', r.store_name, r.plant, q,
       r.avail_qty||'', r.optimal_stock||'', r.current_stock||'',
-      Math.round(r.avg_price), (r.weather_mult||1.0).toFixed(1)+'x', r.is_similar?'유사':'']);
+      Math.round(r.avg_price), r.is_similar?'유사':'']);
   }
   const ws2=XLSX.utils.aoa_to_sheet(det);
   XLSX.utils.book_append_sheet(wb,ws2,'분배상세내역');
@@ -3500,12 +3481,6 @@ async function runDistribution() {
 
     setProgress(65); await tick();
 
-    log('// 날씨 정보 조회 중 (서울)...','info');
-    weatherCtx = await fetchWeather();
-    if (weatherCtx) {
-      const tr = weatherCtx.trend>=0?'▲'+weatherCtx.trend.toFixed(1):'▼'+Math.abs(weatherCtx.trend).toFixed(1);
-      log(`✓ 현재기온 ${weatherCtx.cur}°C (${tr}°C)`,'ok');
-    } else log('⚠ 날씨 정보 없음','warn');
     setProgress(73); await tick();
 
     log('// 분배 로직 실행 중...','info'); await tick();
@@ -4141,24 +4116,6 @@ function tick() { return new Promise(r=>setTimeout(r,30)); }
 
 // ── 초기화 ───────────────────────────────────────────────────────────
 loadDisplayQtyFromStorage();
-(async()=>{
-  weatherCtx = await fetchWeather();
-  if (!weatherCtx) return; // API 실패 시 배너 숨김, 가중치 1.0으로 진행
-  const banner=document.getElementById('weather-banner');
-  banner.style.display='flex';
-  const isUp=weatherCtx.trend>=0;
-  document.getElementById('w-temp').textContent=weatherCtx.cur+'°C';
-  document.getElementById('w-temp').className='w-temp '+(isUp?'w-up':'w-down');
-  document.getElementById('w-desc').textContent='서울 현재기온 · 전일 대비 '+(isUp?'▲':'▼')+Math.abs(weatherCtx.trend).toFixed(1)+'°C '+(isUp?'상승':'하락');
-  const ss=weatherMult('SS',weatherCtx), fw=weatherMult('FW',weatherCtx);
-  const dow=['일','월','화','수','목','금','토'][new Date().getDay()], dm=getDowMult();
-  document.getElementById('w-tags').innerHTML=
-    `<span class="w-tag tag-ss">SS ${ss>=1?'+':''}${Math.round((ss-1)*100)}%</span>`+
-    `<span class="w-tag tag-fw">FW ${fw>=1?'+':''}${Math.round((fw-1)*100)}%</span>`+
-    `<span class="w-tag tag-day">${dow}요일 ×${dm.toFixed(2)}</span>`+
-    `<span class="w-tag tag-init">초도/반응 자동판별</span>`;
-})();
-
 // ═══════════════════════════════════════════════════════════════════════
 // v7 모드/매장 UI 함수
 // ═══════════════════════════════════════════════════════════════════════
@@ -4260,7 +4217,6 @@ function renderToggleUI() {
     const knob = el.firstElementChild;
     if (knob) knob.style.left = isOn ? '24px' : '2px';
   };
-  renderToggle('toggle-children', !!appSettings.includeChildren);
   renderToggle('toggle-zara', !!appSettings.includeZara);
 }
 
