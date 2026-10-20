@@ -2430,10 +2430,12 @@ function findSimilar(mat, info, inv, priceRange, remaining, similarIdx, plant, s
     const mcVel = plantMc[(i.cat||'')+'|'+(i.mc||'')] || plantMc[i.mc||''] || 0;  // v8 fix(2026-10-11): 키='셀|MC'
     if (mcVel <= 0) continue;
 
-    // 점수: 우선순위 MCH2(필수) → MC아이템 → 시즌 → 사이즈+컬러
-    let score = 0;
+    // 필수(2026-10-20 지니 확정): MC 아이템(끝 2자리) 동일 — 운동화→셔츠, 가방→머플러 같은 대체 차단
     const iItem = (i.mc||'').slice(-2);
-    if (baseItem && iItem && baseItem===iItem) score += 8; // MC 아이템 동일
+    if (!baseItem || !iItem || baseItem!==iItem) continue;
+
+    // 점수: MCH2·MC아이템(필수) → 시즌 → 사이즈+컬러
+    let score = 8;
     const sameSeason = (i.season===info.season)||(i.season==='ALL')||(info.season==='ALL');
     if (sameSeason) score += 4; // 시즌 일치
     const sameSize  = info.size  && i.size  && info.size!=='#'  && i.size!=='#'  && info.size===i.size;
@@ -2447,12 +2449,11 @@ function findSimilar(mat, info, inv, priceRange, remaining, similarIdx, plant, s
   // 점수 → 매장 스타일 판매속도 → 매장 MC 판매속도 순
   candidates.sort((a,b) => b.score - a.score || b.styleVel - a.styleVel || b.mcVel - a.mcVel);
   const best = candidates[0];
-  let matchLabel = '카테고리+가격대';
-  if (best.score >= 12) matchLabel = 'MC+시즌+사이즈 일치';
-  else if (best.score >= 8) matchLabel = 'MC아이템 일치';
-  else if (best.score >= 4) matchLabel = '시즌 일치';
-  else if (best.score >= 2) matchLabel = '사이즈+컬러 일치';
-  else if (best.score >= 1) matchLabel = '사이즈 일치';
+  // 아이템은 항상 일치(필수) → 라벨은 시즌·사이즈 일치 여부만 덧붙임
+  let matchLabel = '아이템 일치';
+  if (best.score >= 12) matchLabel += '+시즌';
+  if (best.score % 4 >= 2) matchLabel += '+사이즈·컬러';
+  else if (best.score % 4 >= 1) matchLabel += '+사이즈';
   return {...best, matchLabel};
 }
 
