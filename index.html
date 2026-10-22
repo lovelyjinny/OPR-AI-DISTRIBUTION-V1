@@ -3614,6 +3614,8 @@ async function runDistribution() {
     setProgress(100); log('✓ 완료!','ok'); await tick();
 
     // v8 fix(2026-10-11): 분배 완료 시 마지막 분배일을 모드×카테고리별로 저장
+    // 2026-10-22: 0장이면 분배일을 저장하지 않음 (저장하면 다음 실행 매출기간이 비어 계속 0장)
+    if (window._catPeriods && totalQty === 0) { log('※ 배정 0장 — 마지막 분배일은 저장하지 않았습니다','warn'); window._catPeriods = null; }
     if (window._catPeriods) {
       try {
         for (const pr of window._catPeriods) localStorage.setItem(lastDistKey(pr.mode, pr.cat), pr.end);
