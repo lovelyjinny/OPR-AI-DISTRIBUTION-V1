@@ -610,7 +610,7 @@ async function runDistribution(){
     const tot=result.results.reduce((a,r)=>a+r.qty,0);
     log('─────────────────────────');log('분배 결과: '+result.results.length+'건 / '+tot.toLocaleString()+'개 / 미배정 '+result.unmet.length+'건','ok');
     RESULT={dt,distDate,result};RESMETA=meta;
-    if(!isInit){setLastDist(dt,distDate);log('마지막 분배일 저장: '+distDate+' ('+dt+') — 다음 분배는 이 날(당일 매출)부터 누적','info');}
+    if(!isInit&&tot===0)log('※ 배정 0개 — 마지막 분배일은 저장하지 않았습니다 (2026-10-22)','warn');if(!isInit&&tot>0){setLastDist(dt,distDate);log('마지막 분배일 저장: '+distDate+' ('+dt+') — 다음 분배는 이 날(당일 매출)부터 누적','info');}
     renderResult();showPanel('result',null);document.getElementById('nav-result').classList.add('active');document.getElementById('nav-dist').classList.remove('active');
     log('완료 — 결과 탭으로 이동','ok');
   }catch(e){console.error(e);showError('오류: '+e.message);log('오류: '+e.message,'err');}
