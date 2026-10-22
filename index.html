@@ -259,7 +259,8 @@ body { padding-top: var(--switch-h); }
   <button id="sw-kids" onclick="switchApp('kids')">키즈</button>
 </div>
 <div class="kids-view" id="kids-view">
-  <iframe id="kids-frame" src="kids.html" title="키즈 분배" onload="window.kidsFrameLoaded && kidsFrameLoaded()"></iframe>
+  <iframe id="kids-frame" title="키즈 분배" onload="window.kidsFrameLoaded && kidsFrameLoaded()"></iframe>
+  <script>/* 2026-10-22: 키즈 화면 옛 버전 캐시 방지 — 열 때마다 최신 kids.html */document.getElementById('kids-frame').src='kids.html?v='+Date.now();</script>
 </div>
 <div class="app">
 
