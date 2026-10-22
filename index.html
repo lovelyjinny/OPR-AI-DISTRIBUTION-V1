@@ -3477,7 +3477,17 @@ async function runDistribution() {
       }
     }
     log(`✓ 가용재고에 계절월 매핑: 성공 ${smApplied}개 / 매핑실패 ${smMissing}개`,'ok');
-    
+
+    // v8 fix(2026-10-22 지니): 초도 = 출고기록 없음 + 어느 매장에도 재고 없음 (키즈와 같게)
+    //   가용재고 '최종재고반출'은 지금 로케이션 기준이라 재입고·이동 뒤엔 비어 있음 → 이미 STO로 나간 상품이 초도로 잡히던 문제
+    let newInStore = 0;
+    for (const [sku, info] of Object.entries(availStock)) {
+      if (!info.is_new) continue;
+      const sq = (inv[sku] && inv[sku].store_qty) || {};
+      if (Object.values(sq).some(q => q > 0)) { info.is_new = false; newInStore++; }
+    }
+    if (newInStore) log(`✓ 매장에 이미 재고 있는 ${newInStore}개 → 초도 제외(반응 대상)`,'ok');
+
     const availTotal = Object.values(availStock).reduce((s,v)=>s+v.total_qty,0);
     const newCount = Object.values(availStock).filter(v=>v.is_new).length;
     log(`✓ 가용재고 ${Object.keys(availStock).length}개 스타일 / 총 ${availTotal.toLocaleString()}개`,'ok');
