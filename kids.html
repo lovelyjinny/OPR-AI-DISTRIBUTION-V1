@@ -438,14 +438,17 @@ function parseInventory(wb){const rows=pickSheet(wb,'일재고분석');
     inv[style].total_qty+=qty;inv[style].store_qty[plant]=(inv[style].store_qty[plant]||0)+qty;}
   return inv;}
 
-function parseAvailable(wb){const rows=pickSheet(wb,'Sheet1');
+let AVAIL_NEG={rows:0,qty:0,dropped:0};
+function parseAvailable(wb){AVAIL_NEG={rows:0,qty:0,dropped:0};const rows=pickSheet(wb,'Sheet1');
   const {hdr,cols}=findCols(rows,{mat:['=자재'],mc:['=자재 그룹','자재그룹'],name:['자재내역'],qty:['가용 수량','가용수량'],pgroup:['=구매 그룹','구매 그룹','구매그룹'],brand:['브랜드 내역','브랜드내역'],ret:['최종재고반출'],season:['=계절','계절연도+계절'],syear:['=시즌 연도','시즌연도']},{anchor:['가용 수량','자재내역','브랜드 내역'],upRows:0});
   let C,dataStart;
   if(hdr>=0&&cols.mat>=0&&cols.qty>=0&&cols.season>=0){C={mat:cols.mat,mc:cols.mc,name:cols.name,qty:cols.qty,pgroup:cols.pgroup,brand:cols.brand,ret:cols.ret,season:cols.season,syear:cols.syear};dataStart=hdr+1;}
   else{C=Object.assign({},COL_AVAIL);C.pgroup=-1;dataStart=AVAIL_HDR;}
   const g=(r,k)=>(C[k]>=0&&C[k]<r.length)?r[C[k]]:null;
   const av={};const maxc=Math.max(C.season,C.qty,C.mat);
-  for(let i=dataStart;i<rows.length;i++){const r=rows[i];if(!r||r.length<=maxc)continue;const mat=String(g(r,'mat')||'').trim();if(!mat)continue;const qty=num(g(r,'qty'));if(qty<=0)continue;const mc=String(g(r,'mc')||'').trim();const ret=g(r,'ret');const hasRet=ret!=null&&String(ret).trim()!=='';if(!av[mat]){const brand=String(g(r,'brand')||'').trim();av[mat]={name:String(g(r,'name')||'').trim(),brand,mc,mch2:mc.length>=2?mc.slice(0,2):'',pgroup:String(g(r,'pgroup')||'').trim(),season:getSeason(g(r,'season')),season_code:seasonCode(g(r,'season')),season_year:parseInt(g(r,'syear'))||0,is_new:true,total_qty:0,style_key:nameStyleKey(brand,g(r,'name')),color:nameColor(g(r,'name')),group:brandGroup(brand)};}if(hasRet)av[mat].is_new=false;av[mat].total_qty+=qty;}
+  for(let i=dataStart;i<rows.length;i++){const r=rows[i];if(!r||r.length<=maxc)continue;const mat=String(g(r,'mat')||'').trim();if(!mat)continue;const qty=num(g(r,'qty'));if(qty===0)continue;if(qty<0){AVAIL_NEG.rows++;AVAIL_NEG.qty-=qty;}const mc=String(g(r,'mc')||'').trim();const ret=g(r,'ret');const hasRet=ret!=null&&String(ret).trim()!=='';if(!av[mat]){const brand=String(g(r,'brand')||'').trim();av[mat]={name:String(g(r,'name')||'').trim(),brand,mc,mch2:mc.length>=2?mc.slice(0,2):'',pgroup:String(g(r,'pgroup')||'').trim(),season:getSeason(g(r,'season')),season_code:seasonCode(g(r,'season')),season_year:parseInt(g(r,'syear'))||0,is_new:true,total_qty:0,style_key:nameStyleKey(brand,g(r,'name')),color:nameColor(g(r,'name')),group:brandGroup(brand)};}if(hasRet)av[mat].is_new=false;av[mat].total_qty+=qty;}
+  /* 2026-10-22 지니: 마이너스 행(이미 올린 분배 = 출고 대기분)도 합산해 차감 — 성인 v8과 같게. 옛: 0 이하 행 버림 → 이미 나간 재고 또 분배 */
+  for(const m in av){if(av[m].total_qty<=0){delete av[m];AVAIL_NEG.dropped++;}}
   return av;}
 function parsePurchasePO(wb){const codegen={},poq={};
   wb.SheetNames.forEach(sn=>{const m=sn.match(/\((.+?)\)/);const brand=m?m[1]:'';
@@ -601,7 +604,7 @@ async function runDistribution(){
     log('═══ '+dt+' / 분배일 '+distDate+' ═══','ok');
     log('출고 대상 매장: '+plants.length+'개 ('+plants.map(p=>STORES[p]).join(', ')+')');
     const parsed={avail:{},inv:{}};let records=[];
-    if(FILES.avail){log('가용재고 파싱...');parsed.avail=parseAvailable(await readXLSX(FILES.avail));log('  → '+Object.keys(parsed.avail).length+'종');}
+    if(FILES.avail){log('가용재고 파싱...');parsed.avail=parseAvailable(await readXLSX(FILES.avail));log('  → '+Object.keys(parsed.avail).length+'종');if(AVAIL_NEG.rows)log('  → 이미 올린 분배(마이너스 '+AVAIL_NEG.rows+'행, '+AVAIL_NEG.qty.toLocaleString()+'장) 차감 · 남는 재고 없는 '+AVAIL_NEG.dropped+'종 제외','info');}
     if(FILES.inv){log('일재고 파싱...');parsed.inv=parseInventory(await readXLSX(FILES.inv));log('  → '+Object.keys(parsed.inv).length+'종');}
     if(FILES.sales){log('매출 파싱...');const sr=parseSales(await readXLSX(FILES.sales));records=sr.rows;log('  → '+records.length+'행 ('+sr.dateMin+'~'+sr.dateMax+')');}
     const bms=brandMcStore(records);
