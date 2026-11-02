@@ -1448,6 +1448,14 @@ async function autoLoadToday() {
       handleFile({files:[new File([blob], name)], value:''}, key);
       got.push(labels[key] + ' <b>' + name + '</b>');
     }
+    // 2026-11-02: 키즈 직납필업용 점직납 구매오더 모니터링 — 직영은 안 쓰고 키즈 '점직남 모니터링' 칸에만
+    const poName = (info.files || {}).po;
+    if (poName && !window._kidsPo) {
+      const pb = await (await fetch('/today/file/po' + qs)).blob();
+      window._kidsPo = new File([pb], poName);
+      const kw = kidsWin(); if (kw) kw.kidsBridge.setFile('po', window._kidsPo);
+      got.push('점직납(키즈) <b>' + poName + '</b>');
+    }
     banner.innerHTML = `📂 <b>${info.folder || '(날짜 폴더 없음)'}</b> 폴더에서 자동으로 올렸어요 (직영·키즈 공용)<br>` +
       (got.length ? got.join(' · ') : '올린 파일 없음') +
       (miss.length ? `<br><span style="color:#B45309">⚠ 없음: ${miss.join(', ')} — 아래 칸에 직접 올려주세요</span>` : '');
@@ -1475,7 +1483,7 @@ function loadCfgInputs() {
 }
 window.addEventListener('DOMContentLoaded', loadCfgInputs);
 
-function kidsFrameLoaded() { for (const k of SHARED_KEYS) if (files[k]) shareToKids(k, files[k]); }
+function kidsFrameLoaded() { for (const k of SHARED_KEYS) if (files[k]) shareToKids(k, files[k]); const w = kidsWin(); if (w && window._kidsPo) w.kidsBridge.setFile('po', window._kidsPo); }
 function oprShareFromKids(key, file) {
   if (!SHARED_KEYS.includes(key) || files[key]) return;
   handleFile({files:[file], value:''}, key);
@@ -1928,6 +1936,16 @@ const DIST_SEASON = 'FW';
 function isDistSeason(season, brandName) {
   if (season === DIST_SEASON || season === 'ALL') return true;
   return isSeasonBypassByBrand(brandName);
+}
+// v8 fix(2026-11-02 지니): SS는 필업(반응)에만 — 초도는 DIST_SEASON(FW)만
+//   필업 = FW·시즌리스(9)·시즌 무관 브랜드 + SS(1·2). SS 상품은 계절월(봄·여름) 제외도 하지 않는다
+const REFILL_EXTRA_SEASONS = ['SS'];
+function isRefillSeason(season, brandName) {
+  return isDistSeason(season, brandName) || REFILL_EXTRA_SEASONS.includes(season);
+}
+function refillSeasonMonth(info) {
+  if (REFILL_EXTRA_SEASONS.includes(info.season)) return {mult: 1.0, label: 'SS 필업'};
+  return seasonMonthPriority(info.season_month);
 }
 function getDowMult() {
   const dow = new Date().getDay();
@@ -2500,7 +2518,7 @@ function distribute(inv, salesData, availStock, weather) {
   //   2) 매장×MC 채울 양 = MC 판매수량 (카테고리 부족분 안에서 비례 축소)
   //   3) 각 MC 채우는 우선순위: 신상SS → 이월SS → 유사스타일 (모두 동일 MC 안에서)
   //   4) 한 스타일에 매장당 BASE_QTY(3개) 초과 분배 안 됨 → 사이즈 균형 유지
-  //   5) DIST_SEASON 시즌만 분배(현재 FW=3·4·9, SS 제외), 아동 카테고리 제외
+  //   5) 초도=DIST_SEASON(FW=3·4·9)만, 필업=FW+SS(2026-11-02 지니), 아동 카테고리 제외
   
   const _selectedStores = appSettings.selectedStores && appSettings.selectedStores.length > 0
     ? appSettings.selectedStores : Object.keys(STORES);
@@ -2678,8 +2696,8 @@ function distribute(inv, salesData, availStock, weather) {
           .filter(([mat, info]) => {
             if (info.is_new) return false;
             if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
-            if (!isDistSeason(info.season, info.brand_name)) return false;
-            if (!isValidSeasonMonth(info.season_month)) return false;
+            if (!isRefillSeason(info.season, info.brand_name)) return false;  // v8 fix(2026-11-02): 필업은 SS 포함
+            if (refillSeasonMonth(info).isInvalid) return false;
             if (info.mc !== mc) return false;
             if ((remaining[mat]||0) <= 0) return false;
             return true;
@@ -2700,7 +2718,7 @@ function distribute(inv, salesData, availStock, weather) {
           const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
           if (alloc <= 0) continue;
 
-          const smP = seasonMonthPriority(info.season_month);
+          const smP = refillSeasonMonth(info);
           const wm  = weatherMult(info.season, weather);
           reactResults.push({
             mat, plant, qty: alloc, cat, dist_type: 'react',
@@ -2728,8 +2746,8 @@ function distribute(inv, salesData, availStock, weather) {
             .filter(([mat, info]) => {
               if (info.is_new) return false;
               if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
-              if (!isDistSeason(info.season, info.brand_name)) return false;
-              if (!isValidSeasonMonth(info.season_month)) return false;
+              if (!isRefillSeason(info.season, info.brand_name)) return false;  // v8 fix(2026-11-02): 필업은 SS 포함
+              if (refillSeasonMonth(info).isInvalid) return false;
               if (!info.mc || info.mc.length < 4) return false;
               if (info.mc === mc) return false;
               if (info.mc.substring(0, 4) !== mc4) return false;
@@ -2752,7 +2770,7 @@ function distribute(inv, salesData, availStock, weather) {
             const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
             if (alloc <= 0) continue;
 
-            const smP = seasonMonthPriority(info.season_month);
+            const smP = refillSeasonMonth(info);
             const wm  = weatherMult(info.season, weather);
             reactResults.push({
               mat, plant, qty: alloc, cat, dist_type: 'react',
@@ -2792,7 +2810,7 @@ function distribute(inv, salesData, availStock, weather) {
             const simStyle = findSimilar(mat, fallbackInv, inv, PRICE_RANGE, remaining, similarIdx, plant, stylePlant4w, mcStorePlant, simUsage, SIM_MAX_USE);
             if (!simStyle) continue;
             const simAvail = availStock[simStyle.mat];
-            if (!simAvail || simAvail.cell !== cat || !isDistSeason(simAvail.season, simAvail.brand_name)) continue;   // v8 fix(2026-10-11): 분배 시즌(DIST_SEASON) + 시즌리스 + 시즌 무관 브랜드 통과
+            if (!simAvail || simAvail.cell !== cat || !isRefillSeason(simAvail.season, simAvail.brand_name)) continue;   // v8 fix(2026-11-02): 필업 시즌(FW·시즌리스·시즌 무관 브랜드 + SS)
             if ((remaining[simStyle.mat]||0) <= 0) continue;
             if (storeAlloc.has(simStyle.mat)) continue;  // v8 fix(2026-06-05): 유사스타일도 매장당 중복 차단
 
