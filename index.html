@@ -1944,6 +1944,80 @@ function refillSeasonMonth(info) {
   if (REFILL_EXTRA_SEASONS.includes(info.season)) return {mult: 1.0, label: 'SS 필업'};
   return seasonMonthPriority(info.season_month);
 }
+// 2026-11-02 지니: 매장 처리 순서 = 강서 → 송파 → 분당 → 천호2 → 강남 (물류 재고가 모자라면 앞 매장부터 채움)
+//   목록에 없는 매장은 그 뒤에 Object.keys(STORES) 순서 = 플랜트 코드 순 (불광→동수원→순천→수원터미널)
+const STORE_PRIORITY = ['8227','8224','7209','7215','8206'];
+function storeRank(plant) {
+  const i = STORE_PRIORITY.indexOf(plant);
+  return i >= 0 ? i : STORE_PRIORITY.length + Object.keys(STORES).indexOf(plant);
+}
+// 적정재고판 신호등 — 잔여판매주차 = (재고 − 진열량) ÷ 주간 판매
+function weeksSignal(w) {
+  if (w === null) return '판매 없음';
+  if (w < 1) return '출고량조정↑';
+  if (w < 3) return '적량출고';
+  if (w < 4) return '출고량조정↓';
+  return '출고정지';
+}
+// 2026-11-02 지니: 매장 안 아이템 단위 판정 — 아이템 이름은 매장판·진열량 자료와 같은 기준
+//   얼로케이터\아이템 모니터링\mapping_core.py route_keys 를 옮긴 것 (아동은 분배 제외라 뺌). 그쪽 사전을 고치면 여기도 같이 고칠 것
+const IT_SHOE = new Set(["구두", "로퍼", "부츠", "샌들", "스니커즈", "슬리퍼", "신발", "운동화", "제화", "쪼리", "쪼리/슬리퍼"]);
+const IT_M = {"PK티": "PQ티셔츠", "PQ티셔츠": "PQ티셔츠", "pk티": "PQ티셔츠", "pq티셔츠": "PQ티셔츠", "가디건": "가디건", "가방": "가방", "긴팔티": "긴팔", "니트": "니트", "다운": "아우터", "다운점퍼": "아우터", "데님": "청바지", "맨투맨": "맨투맨", "면바지": "면바지", "모자": "모자", "무스탕": "아우터", "바람막이": "쟈켓/점퍼", "바지": "면바지", "반바지": "반바지", "반팔티": "반팔", "백팩": "가방", "베스트": "베스트", "비니": "모자", "셔츠": "셔츠", "수트/정장": "정장/셋업", "스웨터": "니트", "슬랙스": "정장바지", "자켓": "쟈켓/점퍼", "자켓류": "쟈켓/점퍼", "점퍼": "쟈켓/점퍼", "정장바지": "정장바지", "조끼": "베스트", "청바지": "청바지", "캡모자": "모자", "코트": "아우터", "패딩": "아우터", "패딩점퍼": "아우터", "하프팬츠": "반바지", "후드집업": "후드티/후드집업", "후드티": "후드티/후드집업"};
+const IT_W = {"PK티": "PK티", "pk티": "PK티", "가디건": "가디건", "긴팔티": "긴팔티", "니트": "스웨터", "다운": "패딩다운", "다운점퍼": "패딩다운", "데님": "청바지", "맨투맨": "맨투맨", "면바지": "면바지", "무스탕": "퍼/무스탕", "민소매": "민소매", "바지": "면바지", "반바지": "반바지", "반팔티": "반팔티", "블라우스": "블라우스", "셔츠": "셔츠", "스웨터": "스웨터", "스커트": "스커트", "슬랙스": "면바지", "시어링": "퍼/무스탕", "원피스": "원피스", "자켓": "자켓", "자켓류": "자켓", "점퍼": "점퍼", "정장바지": "면바지", "조끼": "조끼", "청바지": "청바지", "코트": "코트", "트렌치코트": "코트", "티셔츠": "긴팔티", "패딩": "패딩다운", "패딩점퍼": "패딩다운", "팬츠": "면바지", "퍼": "퍼/무스탕", "폴라티": "스웨터", "하프팬츠": "반바지", "후드집업": "후드집업", "후드티": "후드티"};
+const IT_J = {"가방": "가방", "내의": "언더웨어", "드로즈": "언더웨어", "라운지웨어": "홈웨어", "런닝": "언더웨어", "머플러": "머플러", "명품 가방": "가방", "모자": "모자", "모자/비니": "모자", "목도리": "머플러", "목도리/워머/머": "머플러", "목도리/워머/머플러": "머플러", "백팩": "가방", "벨트": "벨트", "보정": "언더웨어", "브라": "언더웨어", "비니": "모자", "스카프": "머플러", "스타킹": "언더웨어", "실내복": "홈웨어", "양말": "언더웨어", "여행용 캐리어": "가방", "워머": "머플러", "잠옷": "홈웨어", "지갑": "지갑", "캡모자": "모자", "크로스백": "가방", "토트백": "가방", "파우치": "가방", "파자마": "홈웨어", "팬티": "언더웨어", "홈웨어": "홈웨어"};
+const IT_LIV = {"가구": "리빙(홈데코)", "가전": "리빙(가전)", "거실용품": "리빙(생활)", "생활용품": "리빙(생활)", "소형가전": "리빙(가전)", "양산": "리빙(생활)", "우산": "리빙(생활)", "우산/양산": "리빙(생활)", "이불": "리빙(침구)", "주방용품": "리빙(가전)", "침구": "리빙(침구)", "침구류": "리빙(침구)", "팬시용품": "리빙(홈데코)", "홈데코": "리빙(홈데코)"};
+function routeItems(mcName) {
+  const t = String(mcName||'').split('_');
+  if (t.length < 2) return [];
+  const last = t[t.length-1].trim(), lo = last.toLowerCase(), t1 = t[1].trim(), ks = [];
+  if (t[0].includes('아동') || t[0].includes('키즈')) return ks;
+  if (IT_SHOE.has(last)) return [['남성','신발']];
+  const sub = t.length >= 3 && (t1 === '잡화' || t1 === '제화');   // 남성_잡화_* 는 잡화 셀로만
+  if (t[0].includes('남성') && !sub) { const m = IT_M[last] || IT_M[lo]; if (m) ks.push(['남성', m]); }
+  else if (t[0].includes('여성') && !sub) { const w = IT_W[last] || IT_W[lo]; if (w) ks.push(['여성', w]); }
+  if (t.length >= 3 && (t1 === '잡화' || t1 === '언더웨어')) ks.push(['잡화', IT_J[last] || IT_J[lo] || 'ACC']);
+  else if (t[0].includes('리빙')) ks.push(['잡화', IT_LIV[last] || IT_LIV[lo] || '리빙(기타)']);
+  else if (t.some(x => x.includes('캐릭터'))) ks.push(['잡화','캐릭터']);
+  return ks;
+}
+// 분배 셀(cell4) 안에서의 아이템 — 아이템 규칙의 셀이 분배 셀과 다르거나 아이템이 안 잡히면 '기타'
+const _itemCache = {};
+function itemOf(cell, mc) {
+  const ck = cell + '|' + mc;
+  if (!(ck in _itemCache)) {
+    const k = routeItems(MC_NAME[mc] || '').find(([c]) => c === cell);
+    _itemCache[ck] = k ? k[1] : '기타';
+  }
+  return _itemCache[ck];
+}
+// 8/21 점별 진열량 취합의 매장×셀×아이템 값 (진열량.json br_item, displayQty 와 같은 자료 · DISPLAY_QTY_VER)
+//   셀 진열량 − 아이템 합 = 아이템 없이 적힌 몫('상의'·'바지' 등) → 그 매장 아이템별 주간판매 비중으로 나눠 붙임 (매장판과 같은 규칙, 지니 08-25)
+const DISPLAY_ITEM = {
+  "천호2점__남성":{"PQ티셔츠": 349, "가디건": 210, "니트": 411, "맨투맨": 324, "반바지": 62, "반팔": 385, "베스트": 42, "셔츠": 254, "신발": 665, "아우터": 168, "쟈켓/점퍼": 398, "정장/셋업": 20, "청바지": 281, "후드티/후드집업": 540},
+  "천호2점__여성":{"가디건": 200, "긴팔티": 49, "반바지": 50, "반팔티": 49, "블라우스": 40, "셔츠": 100, "스웨터": 457, "스커트": 599, "원피스": 617, "자켓": 209, "점퍼": 270, "조끼": 257, "청바지": 330, "후드집업": 15, "후드티": 64},
+  "천호2점__잡화":{"ACC": 118, "가방": 958, "머플러": 40, "모자": 390, "벨트": 8, "언더웨어": 173, "지갑": 8, "홈웨어": 105},
+  "강서점__남성":{"PQ티셔츠": 376, "가디건": 40, "긴팔": 135, "니트": 97, "맨투맨": 140, "면바지": 202, "반바지": 315, "반팔": 1066, "셔츠": 541, "신발": 2497, "아우터": 3, "쟈켓/점퍼": 742, "청바지": 184, "후드티/후드집업": 319},
+  "강서점__여성":{"PK티": 266, "가디건": 5, "긴팔티": 705, "맨투맨": 8, "면바지": 71, "민소매": 1, "반바지": 320, "반팔티": 985, "블라우스": 421, "셔츠": 55, "스웨터": 483, "스커트": 406, "원피스": 812, "자켓": 108, "점퍼": 2, "조끼": 2, "청바지": 437, "코트": 2, "후드티": 231},
+  "강서점__잡화":{"ACC": 2815, "가방": 1412, "리빙(기타)": 1000, "리빙(생활)": 440, "리빙(침구)": 240, "모자": 1965, "벨트": 2, "언더웨어": 1349, "지갑": 80, "홈웨어": 386},
+  "송파점__남성":{"PQ티셔츠": 300, "긴팔": 1, "니트": 172, "맨투맨": 412, "면바지": 325, "반바지": 120, "반팔": 422, "셔츠": 141, "신발": 653, "아우터": 128, "쟈켓/점퍼": 289, "청바지": 166, "후드티/후드집업": 323},
+  "송파점__여성":{"가디건": 2, "긴팔티": 200, "맨투맨": 4, "면바지": 197, "반바지": 42, "반팔티": 353, "블라우스": 164, "셔츠": 101, "스웨터": 376, "스커트": 213, "원피스": 546, "자켓": 192, "청바지": 287, "코트": 3},
+  "송파점__잡화":{"ACC": 216, "가방": 784, "머플러": 80, "모자": 264, "언더웨어": 300, "홈웨어": 50},
+  "강남점__남성":{"PQ티셔츠": 6, "긴팔": 88, "니트": 184, "맨투맨": 18, "면바지": 229, "반바지": 100, "반팔": 442, "셔츠": 177, "신발": 173, "아우터": 149, "쟈켓/점퍼": 109, "청바지": 103, "후드티/후드집업": 41},
+  "강남점__여성":{"PK티": 1, "가디건": 24, "긴팔티": 61, "맨투맨": 12, "면바지": 168, "민소매": 2, "반바지": 35, "반팔티": 30, "블라우스": 51, "셔츠": 7, "스웨터": 77, "스커트": 77, "원피스": 274, "자켓": 22, "점퍼": 1, "조끼": 2, "청바지": 56, "코트": 8, "패딩다운": 3},
+  "강남점__잡화":{"ACC": 25, "가방": 187, "머플러": 50, "모자": 207, "벨트": 30, "언더웨어": 193, "지갑": 10, "홈웨어": 24},
+  "분당점__남성":{"PQ티셔츠": 14, "긴팔": 821, "니트": 60, "맨투맨": 11, "면바지": 62, "반바지": 6, "반팔": 476, "셔츠": 12, "신발": 422, "아우터": 199, "쟈켓/점퍼": 13, "청바지": 4, "후드티/후드집업": 16},
+  "분당점__여성":{"PK티": 3, "긴팔티": 300, "맨투맨": 3, "면바지": 88, "반바지": 20, "반팔티": 440, "블라우스": 24, "셔츠": 8, "스웨터": 259, "스커트": 78, "원피스": 335, "자켓": 141, "청바지": 14, "코트": 5, "퍼/무스탕": 40},
+  "분당점__잡화":{"ACC": 9, "가방": 245, "모자": 321, "벨트": 6, "언더웨어": 115, "홈웨어": 120},
+  "불광점__남성":{"신발": 200},
+  "불광점__여성":{"원피스": 180},
+  "불광점__잡화":{"가방": 300},
+  "수원터미널점__남성":{"긴팔": 630, "반바지": 200, "반팔": 700, "신발": 120, "아우터": 65, "쟈켓/점퍼": 355},
+  "수원터미널점__여성":{"긴팔티": 130, "반팔티": 80, "스웨터": 65, "스커트": 610, "원피스": 100, "자켓": 150, "조끼": 65},
+  "수원터미널점__잡화":{"가방": 280, "모자": 500, "언더웨어": 200},
+  "동수원점__남성":{"니트": 40, "셔츠": 135, "신발": 512, "아우터": 388},
+  "동수원점__여성":{"스웨터": 360, "스커트": 360, "원피스": 420, "퍼/무스탕": 90},
+  "동수원점__잡화":{"ACC": 110, "가방": 270, "모자": 610, "벨트": 30, "언더웨어": 20}
+};
 function getDowMult() {
   const dow = new Date().getDay();
   const idx = dow===0 ? 6 : dow-1;
@@ -2475,7 +2549,7 @@ function findSimilar(mat, info, inv, priceRange, remaining, similarIdx, plant, s
 
 // ── 메인 분배 로직 ────────────────────────────────────────────────────
 function distribute(inv, salesData, availStock, weather) {
-  const {sales, recentSales, catStore4w, catStore1m, catStoreTotal, stylePlant4w, mcStorePlant, brandStorePlant} = salesData;
+  const {sales, recentSales, catStore4w, catStore1m, catStoreTotal, stylePlant4w, mcStorePlant, brandStorePlant, catStoreWeek, mcStoreWeek} = salesData;
   const initResults=[], reactResults=[], similar=[];
   const simUsage = {};  // 유사스타일 대체품별 사용 라인수 (쏠림 방지)
   const BASE_QTY         = parseInt(document.getElementById('cfg-base').value)||3;
@@ -2495,24 +2569,50 @@ function distribute(inv, salesData, availStock, weather) {
     return !seasonMonthPriority(smCode).isInvalid;
   }
 
-  // 매장별 카테고리 현재재고 계산 (SS 재고만)
-  const storeCatQty = {};
+  // 매장별 카테고리 현재재고 — 2026-11-02: 적정재고판처럼 그 셀의 전 시즌 재고 (옛: 분배 시즌 재고만)
+  const storeCatQty = {}, storeItemQty = {};   // storeItemQty['플랜트|셀'][아이템] (2026-11-02 아이템 단위)
   for (const [style, info] of Object.entries(inv)) {
-    if (!isDistSeason(info.season, info.brand_name)) continue; // 분배 시즌 재고만
     const cat = info.cat;  // v8 fix(2026-10-11): 회사 4셀
     if (!CAT_LABELS.includes(cat)) continue;
+    const item = itemOf(cat, info.mc);
     for (const [plant, qty] of Object.entries(info.store_qty||{})) {
       if (!storeCatQty[plant]) storeCatQty[plant] = {};
       storeCatQty[plant][cat] = (storeCatQty[plant][cat]||0) + qty;
+      const ik = plant + '|' + cat;
+      if (!storeItemQty[ik]) storeItemQty[ik] = {};
+      storeItemQty[ik][item] = (storeItemQty[ik][item]||0) + qty;
     }
+  }
+
+  // 매장×셀 안 아이템별 진열량·재고·주간판매·권장 주간분배 (2026-11-02 지니: 매장 전체가 아니라 아이템 단위로)
+  function itemRows(plant, storeName, cat, disp) {
+    const named = DISPLAY_ITEM[storeName+'__'+cat] || {};
+    const stock = storeItemQty[plant+'|'+cat] || {};
+    const week = {};
+    for (const [key, q] of Object.entries((mcStoreWeek||{})[plant]||{})) {
+      const [c, mc] = key.split('|');
+      if (c !== cat) continue;
+      const it = itemOf(cat, mc);
+      week[it] = (week[it]||0) + q;
+    }
+    const weekTot = Object.values(week).reduce((a,b) => a+b, 0);
+    const unres = Math.max(0, disp - Object.values(named).reduce((a,b) => a+b, 0));
+    const names = new Set([...Object.keys(named), ...Object.keys(stock), ...Object.keys(week)]);
+    return [...names].map(item => {
+      const w = week[item]||0, c = stock[item]||0;
+      const d = (named[item]||0) + (weekTot > 0 ? unres * w / weekTot : 0);
+      return {item, disp: d, cur: c, week: w, weeksLeft: w > 0 ? (c - d) / w : null, recommend: Math.min(d + 2*w - c, w*2)};
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════
   // 통합 분배: 카테고리×MC 단위 부족분 채우기 (v8)
   // ══════════════════════════════════════════════════════════════════════
   // 컨셉: "판매된 만큼 넣는다" → 매장 재고 = 진열량 유지
-  //   1) 매장×카테고리 부족분 = 진열량 - 현재재고 (상한)
-  //   2) 매장×MC 채울 양 = MC 판매수량 (카테고리 부족분 안에서 비례 축소)
+  //   1) 매장×셀×아이템 보낼 양 상한 = 적정재고판 권장 주간분배 = min(진열량 + 2×주간판매 − 현재재고, 주간판매×2) (2026-11-02)
+  //      아이템 단위로 따짐 — 셀 전체가 넘쳐도 모자란 아이템은 나가고, 셀이 모자라도 넘치는 아이템은 안 나감
+  //      처리 순서 = STORE_PRIORITY (강서→송파→분당→천호2→강남→나머지)
+  //   2) 매장×MC 채울 양 = MC 판매수량 (그 MC 아이템의 권장 주간분배 안에서 비례 축소)
   //   3) 각 MC 채우는 우선순위: 신상SS → 이월SS → 유사스타일 (모두 동일 MC 안에서)
   //   4) 한 스타일에 매장당 BASE_QTY(3개) 초과 분배 안 됨 → 사이즈 균형 유지
   //   5) 초도=DIST_SEASON(FW=3·4·9)만, 필업=FW 먼저 → 남은 자리만 SS(4순위, 2026-11-02 지니), 아동 카테고리 제외
@@ -2545,78 +2645,147 @@ function distribute(inv, salesData, availStock, weather) {
     log(`[진단] mcStorePlant: ${Object.keys(mcStorePlant||{}).length}매장 × 평균 ${Math.round(totalMcEntries/Math.max(1,Object.keys(mcStorePlant||{}).length))}MC = ${totalMcEntries} 매장×MC 조합`, 'info');
   }
 
+  // 2026-11-02 지니: 매장×셀을 STORE_PRIORITY 순서로 처리, 부족 판정·보낼 양은 적정재고판 식 (진열량 = 자동분배 값)
+  const storeQueue = [];
   for (const plant of _selectedStores) {
     if (!STORES[plant]) continue;
     const storeName = STORES[plant].name;
-    const storeAlloc = new Set();  // v8 fix(2026-06-05): 한 매장당 같은 SKU 중복 분배 차단
-
     for (const cat of CAT_LABELS) {
       if (cat === '아동') continue;                      // 아동 분배 제외
       if (!(appSettings.selectedCats||DIST_CATS).includes(cat)) continue;  // v8 fix(2026-10-11): 선택한 카테고리만
       const disp = displayQty[storeName+'__'+cat] || 0;
-      if (disp <= 0) { diag.catSkipReasons.dispZero++; continue; }
       const cur  = (storeCatQty[plant]||{})[cat] || 0;
+      const week = ((catStoreWeek||{})[plant]||{})[cat] || 0;
+      const items = disp > 0 ? itemRows(plant, storeName, cat, disp) : [];
+      storeQueue.push({plant, storeName, cat, disp, cur, week, items,
+        weeksLeft: week > 0 ? (cur - disp) / week : null,
+        recommend: items.reduce((a,x) => a + Math.max(0, x.recommend), 0)});
+    }
+  }
+  storeQueue.sort((a,b) => storeRank(a.plant) - storeRank(b.plant) || CAT_LABELS.indexOf(a.cat) - CAT_LABELS.indexOf(b.cat));
+  diag.storeQueue = storeQueue;
+  if (typeof log === 'function') log(`[순서] ${[...new Set(storeQueue.map(q => q.storeName))].join(' → ')}`, 'info');
+  const storeAllocByPlant = {};  // v8 fix(2026-06-05): 한 매장당 같은 SKU 중복 분배 차단
 
-      // (1) 카테고리 부족분 (상한)
-      const catShortage = disp - cur;
-      if (catShortage <= 0) { diag.catSkipReasons.catShortageZero++; continue; }
+  for (const sq of storeQueue) {
+    const {plant, storeName, cat, disp, cur} = sq;
+    const storeAlloc = storeAllocByPlant[plant] || (storeAllocByPlant[plant] = new Set());
+    if (disp <= 0) { diag.catSkipReasons.dispZero++; continue; }
 
-      // (2) 이 매장의 MC별 판매수량 → cat에 속한 MC만 추리기
-      const plantMcSales = (mcStorePlant||{})[plant] || {};
-      const mcDemand = {};
-      let totalMcDemand = 0;
-      for (const [key, soldQty] of Object.entries(plantMcSales)) {
-        // v8 fix(2026-10-11): 키 = '셀|MC' (옵션3 예측은 MC만 → MC이름으로 셀 판정)
-        let mcCat, mc;
-        if (key.includes('|')) [mcCat, mc] = key.split('|');
-        else { mc = key; mcCat = cell4(mc, MC_NAME[mc]||'', '', ''); }
-        if (mcCat !== cat) continue;
-        mcDemand[mc] = (mcDemand[mc]||0) + soldQty;
-        totalMcDemand += soldQty;
+    // (1) 보낼 양 상한 = 아이템별 권장 주간분배 (진열량 + 2주 판매 − 재고, 최대 주간 판매×2)
+    const itemCap = {};
+    for (const x of sq.items) itemCap[x.item] = Math.max(0, x.recommend);
+    if (sq.recommend <= 0) { diag.catSkipReasons.catShortageZero++; continue; }
+
+    // (2) 이 매장의 MC별 판매수량 → cat에 속한 MC만 추리기
+    const plantMcSales = (mcStorePlant||{})[plant] || {};
+    const mcDemand = {};
+    let totalMcDemand = 0;
+    for (const [key, soldQty] of Object.entries(plantMcSales)) {
+      // v8 fix(2026-10-11): 키 = '셀|MC' (옵션3 예측은 MC만 → MC이름으로 셀 판정)
+      let mcCat, mc;
+      if (key.includes('|')) [mcCat, mc] = key.split('|');
+      else { mc = key; mcCat = cell4(mc, MC_NAME[mc]||'', '', ''); }
+      if (mcCat !== cat) continue;
+      mcDemand[mc] = (mcDemand[mc]||0) + soldQty;
+      totalMcDemand += soldQty;
+    }
+    if (totalMcDemand === 0) { diag.catSkipReasons.totalDemandZero++; continue; }
+    diag.catSkipReasons.processed++;
+
+    // 아이템별 MC 수요 합 > 아이템 권장 주간분배 → 그 아이템 MC들만 비례 축소
+    const itemDemand = {};
+    for (const [mc, d] of Object.entries(mcDemand)) { const it = itemOf(cat, mc); itemDemand[it] = (itemDemand[it]||0) + d; }
+
+    // (3) 각 MC 채우기: 신상SS → 이월SS → 유사스타일
+    for (const [mc, demand] of Object.entries(mcDemand)) {
+      const mcItem = itemOf(cat, mc), cap = itemCap[mcItem] || 0;
+      let mcNeed = Math.round(demand * (itemDemand[mcItem] > cap ? cap / itemDemand[mcItem] : 1.0));
+      const mcNeedOrig = mcNeed;
+      if (mcNeed <= 0) continue;
+      const newAvailMc = diag.newSSAvailByMc[mc] || 0;
+      const carryAvailMc = diag.carrySSAvailByMc[mc] || 0;
+      let allocNew = 0, allocCarry = 0, allocSim = 0;
+      const n0 = initResults.length, r0 = reactResults.length;   // 이 MC 로 나간 줄에 아이템 표시 (매장별현황 아이템 집계용)
+
+      // ── 1순위: 신상SS (동일 MC, 가용재고 많은 순) ──
+      // ★ inv[mat] 의존성 제거: 신상은 매장 미입고여도 본사 가용재고로 분배 가능
+      const newStyles = Object.entries(availStock)
+        .filter(([mat, info]) => {
+          if (!info.is_new) return false;
+          if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
+          if (!isDistSeason(info.season, info.brand_name)) return false;
+          if (!isValidSeasonMonth(info.season_month)) return false;
+          if (info.mc !== mc) return false;
+          if (info.total_qty < MIN_AVAIL) return false;
+          if ((remaining[mat]||0) <= 0) return false;
+          return true;
+        })
+        .sort((a,b) => {
+        const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
+        const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
+        if (bb !== ba) return bb - ba;  // v8 fix(2026-06-24): 브랜드 매출 많은 순 우선
+        return b[1].total_qty - a[1].total_qty;
+      });
+
+      for (const [mat, availInfo] of newStyles) {
+        if (mcNeed <= 0) break;
+        if ((remaining[mat]||0) <= 0) continue;
+        if (storeAlloc.has(mat)) continue;  // v8 fix(2026-06-05): 같은 매장에 같은 SKU 또 보내지 않음
+        const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
+        if (alloc <= 0) continue;
+
+        // availInfo에서 직접 가져옴 (inv 없어도 됨)
+        const smP = seasonMonthPriority(availInfo.season_month);
+        const wm  = weatherMult(availInfo.season, weather);
+        initResults.push({
+          mat, plant, qty: alloc, cat, dist_type: 'init',
+          name: availInfo.name, avg_price: availInfo.avg_price,
+          store_name: storeName, season: availInfo.season,
+          season_month: availInfo.season_month, season_month_label: smP.label,
+          weather_mult: wm,
+          optimal_stock: disp,
+          current_stock: Math.round(cur),
+          avail_qty: availInfo.total_qty, is_similar: false,
+          mc: availInfo.mc || mc, brand: availInfo.brand || '', brand_name: availInfo.brand_name || '',
+        });
+        remaining[mat] = (remaining[mat]||0) - alloc;
+        storeAlloc.add(mat);
+        mcNeed -= alloc;
+        allocNew += alloc;
       }
-      if (totalMcDemand === 0) { diag.catSkipReasons.totalDemandZero++; continue; }
-      diag.catSkipReasons.processed++;
 
-      // MC 합계 > 카테고리 부족분 → 비례 축소 (진열량 못 넘김)
-      const scale = totalMcDemand > catShortage ? (catShortage / totalMcDemand) : 1.0;
-
-      // (3) 각 MC 채우기: 신상SS → 이월SS → 유사스타일
-      for (const [mc, demand] of Object.entries(mcDemand)) {
-        let mcNeed = Math.round(demand * scale);
-        const mcNeedOrig = mcNeed;
-        if (mcNeed <= 0) continue;
-        const newAvailMc = diag.newSSAvailByMc[mc] || 0;
-        const carryAvailMc = diag.carrySSAvailByMc[mc] || 0;
-        let allocNew = 0, allocCarry = 0, allocSim = 0;
-
-        // ── 1순위: 신상SS (동일 MC, 가용재고 많은 순) ──
-        // ★ inv[mat] 의존성 제거: 신상은 매장 미입고여도 본사 가용재고로 분배 가능
-        const newStyles = Object.entries(availStock)
+      // ── 1.5순위: 같은 MC4(앞 4자리) 다른 MC 신상SS fallback ──
+      // 옵션 A: 1WCABL 수요인데 신상 0이면 → 같은 1WCA(여성카디건군) 다른 MC 신상으로 채움
+      if (mcNeed > 0 && mc.length >= 4) {
+        const mc4 = mc.substring(0, 4);
+        const newStylesMc4 = Object.entries(availStock)
           .filter(([mat, info]) => {
             if (!info.is_new) return false;
             if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
             if (!isDistSeason(info.season, info.brand_name)) return false;
             if (!isValidSeasonMonth(info.season_month)) return false;
-            if (info.mc !== mc) return false;
+            if (!info.mc || info.mc.length < 4) return false;
+            if (info.mc === mc) return false;                // 동일 MC는 이미 처리됨
+            if (info.mc.substring(0, 4) !== mc4) return false; // 같은 MC4만
             if (info.total_qty < MIN_AVAIL) return false;
             if ((remaining[mat]||0) <= 0) return false;
             return true;
           })
           .sort((a,b) => {
-          const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
-          const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
-          if (bb !== ba) return bb - ba;  // v8 fix(2026-06-24): 브랜드 매출 많은 순 우선
-          return b[1].total_qty - a[1].total_qty;
-        });
+        const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
+        const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
+        if (bb !== ba) return bb - ba;  // v8 fix(2026-06-24): 브랜드 매출 많은 순 우선
+        return b[1].total_qty - a[1].total_qty;
+      });
 
-        for (const [mat, availInfo] of newStyles) {
+        for (const [mat, availInfo] of newStylesMc4) {
           if (mcNeed <= 0) break;
           if ((remaining[mat]||0) <= 0) continue;
           if (storeAlloc.has(mat)) continue;  // v8 fix(2026-06-05): 같은 매장에 같은 SKU 또 보내지 않음
           const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
           if (alloc <= 0) continue;
 
-          // availInfo에서 직접 가져옴 (inv 없어도 됨)
           const smP = seasonMonthPriority(availInfo.season_month);
           const wm  = weatherMult(availInfo.season, weather);
           initResults.push({
@@ -2628,74 +2797,76 @@ function distribute(inv, salesData, availStock, weather) {
             optimal_stock: disp,
             current_stock: Math.round(cur),
             avail_qty: availInfo.total_qty, is_similar: false,
-            mc: availInfo.mc || mc, brand: availInfo.brand || '', brand_name: availInfo.brand_name || '',
+            mc: availInfo.mc, brand: availInfo.brand || '', brand_name: availInfo.brand_name || '',
           });
           remaining[mat] = (remaining[mat]||0) - alloc;
           storeAlloc.add(mat);
           mcNeed -= alloc;
           allocNew += alloc;
         }
+      }
 
-        // ── 1.5순위: 같은 MC4(앞 4자리) 다른 MC 신상SS fallback ──
-        // 옵션 A: 1WCABL 수요인데 신상 0이면 → 같은 1WCA(여성카디건군) 다른 MC 신상으로 채움
-        if (mcNeed > 0 && mc.length >= 4) {
-          const mc4 = mc.substring(0, 4);
-          const newStylesMc4 = Object.entries(availStock)
-            .filter(([mat, info]) => {
-              if (!info.is_new) return false;
-              if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
-              if (!isDistSeason(info.season, info.brand_name)) return false;
-              if (!isValidSeasonMonth(info.season_month)) return false;
-              if (!info.mc || info.mc.length < 4) return false;
-              if (info.mc === mc) return false;                // 동일 MC는 이미 처리됨
-              if (info.mc.substring(0, 4) !== mc4) return false; // 같은 MC4만
-              if (info.total_qty < MIN_AVAIL) return false;
-              if ((remaining[mat]||0) <= 0) return false;
-              return true;
-            })
-            .sort((a,b) => {
+      // ── 2순위: 이월SS (동일 MC, 매장 판매량 많은 순) ──
+      // ★ inv[mat] 의존성 제거: 이월도 본사 가용재고 기준
+      const carryStyles = Object.entries(availStock)
+        .filter(([mat, info]) => {
+          if (info.is_new) return false;
+          if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
+          if (!isDistSeason(info.season, info.brand_name)) return false;
+          if (!isValidSeasonMonth(info.season_month)) return false;
+          if (info.mc !== mc) return false;
+          if ((remaining[mat]||0) <= 0) return false;
+          return true;
+        })
+        .sort((a,b) => {
           const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
           const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
           if (bb !== ba) return bb - ba;  // v8 fix(2026-06-24): 브랜드 매출 많은 순 우선
-          return b[1].total_qty - a[1].total_qty;
+          const sa = ((stylePlant4w||{})[a[0]]||{})[plant] || 0;
+          const sb = ((stylePlant4w||{})[b[0]]||{})[plant] || 0;
+          return sb - sa;
         });
 
-          for (const [mat, availInfo] of newStylesMc4) {
-            if (mcNeed <= 0) break;
-            if ((remaining[mat]||0) <= 0) continue;
-            if (storeAlloc.has(mat)) continue;  // v8 fix(2026-06-05): 같은 매장에 같은 SKU 또 보내지 않음
-            const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
-            if (alloc <= 0) continue;
+      for (const [mat, info] of carryStyles) {
+        if (mcNeed <= 0) break;
+        if ((remaining[mat]||0) <= 0) continue;
+        if (storeAlloc.has(mat)) continue;  // v8 fix(2026-06-05): 같은 매장에 같은 SKU 또 보내지 않음
+        const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
+        if (alloc <= 0) continue;
 
-            const smP = seasonMonthPriority(availInfo.season_month);
-            const wm  = weatherMult(availInfo.season, weather);
-            initResults.push({
-              mat, plant, qty: alloc, cat, dist_type: 'init',
-              name: availInfo.name, avg_price: availInfo.avg_price,
-              store_name: storeName, season: availInfo.season,
-              season_month: availInfo.season_month, season_month_label: smP.label,
-              weather_mult: wm,
-              optimal_stock: disp,
-              current_stock: Math.round(cur),
-              avail_qty: availInfo.total_qty, is_similar: false,
-              mc: availInfo.mc, brand: availInfo.brand || '', brand_name: availInfo.brand_name || '',
-            });
-            remaining[mat] = (remaining[mat]||0) - alloc;
-            storeAlloc.add(mat);
-            mcNeed -= alloc;
-            allocNew += alloc;
-          }
-        }
+        const smP = refillSeasonMonth(info);
+        const wm  = weatherMult(info.season, weather);
+        reactResults.push({
+          mat, plant, qty: alloc, cat, dist_type: 'react',
+          name: info.name, avg_price: info.avg_price,
+          store_name: storeName, season: info.season,
+          season_month: info.season_month, season_month_label: smP.label,
+          weather_mult: wm,
+          optimal_stock: disp,
+          current_stock: Math.round(cur),
+          avail_qty: info.total_qty, is_similar: false,
+          mc: info.mc || mc, brand: info.brand || '', brand_name: info.brand_name || '',
+          velocity_tier: '판매보충',
+          sales_velocity: 0,
+        });
+        remaining[mat] = (remaining[mat]||0) - alloc;
+        storeAlloc.add(mat);
+        mcNeed -= alloc;
+        allocCarry += alloc;
+      }
 
-        // ── 2순위: 이월SS (동일 MC, 매장 판매량 많은 순) ──
-        // ★ inv[mat] 의존성 제거: 이월도 본사 가용재고 기준
-        const carryStyles = Object.entries(availStock)
+      // ── 2.5순위: 같은 MC4(앞 4자리) 다른 MC 이월SS fallback ──
+      if (mcNeed > 0 && mc.length >= 4) {
+        const mc4 = mc.substring(0, 4);
+        const carryStylesMc4 = Object.entries(availStock)
           .filter(([mat, info]) => {
             if (info.is_new) return false;
             if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
             if (!isDistSeason(info.season, info.brand_name)) return false;
             if (!isValidSeasonMonth(info.season_month)) return false;
-            if (info.mc !== mc) return false;
+            if (!info.mc || info.mc.length < 4) return false;
+            if (info.mc === mc) return false;
+            if (info.mc.substring(0, 4) !== mc4) return false;
             if ((remaining[mat]||0) <= 0) return false;
             return true;
           })
@@ -2708,7 +2879,7 @@ function distribute(inv, salesData, availStock, weather) {
             return sb - sa;
           });
 
-        for (const [mat, info] of carryStyles) {
+        for (const [mat, info] of carryStylesMc4) {
           if (mcNeed <= 0) break;
           if ((remaining[mat]||0) <= 0) continue;
           if (storeAlloc.has(mat)) continue;  // v8 fix(2026-06-05): 같은 매장에 같은 SKU 또 보내지 않음
@@ -2726,7 +2897,7 @@ function distribute(inv, salesData, availStock, weather) {
             optimal_stock: disp,
             current_stock: Math.round(cur),
             avail_qty: info.total_qty, is_similar: false,
-            mc: info.mc || mc, brand: info.brand || '', brand_name: info.brand_name || '',
+            mc: info.mc, brand: info.brand || '', brand_name: info.brand_name || '',
             velocity_tier: '판매보충',
             sales_velocity: 0,
           });
@@ -2735,165 +2906,114 @@ function distribute(inv, salesData, availStock, weather) {
           mcNeed -= alloc;
           allocCarry += alloc;
         }
-
-        // ── 2.5순위: 같은 MC4(앞 4자리) 다른 MC 이월SS fallback ──
-        if (mcNeed > 0 && mc.length >= 4) {
-          const mc4 = mc.substring(0, 4);
-          const carryStylesMc4 = Object.entries(availStock)
-            .filter(([mat, info]) => {
-              if (info.is_new) return false;
-              if (info.cell !== cat) return false;  // v8 fix(2026-10-11): 같은 셀만
-              if (!isDistSeason(info.season, info.brand_name)) return false;
-              if (!isValidSeasonMonth(info.season_month)) return false;
-              if (!info.mc || info.mc.length < 4) return false;
-              if (info.mc === mc) return false;
-              if (info.mc.substring(0, 4) !== mc4) return false;
-              if ((remaining[mat]||0) <= 0) return false;
-              return true;
-            })
-            .sort((a,b) => {
-              const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
-              const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
-              if (bb !== ba) return bb - ba;  // v8 fix(2026-06-24): 브랜드 매출 많은 순 우선
-              const sa = ((stylePlant4w||{})[a[0]]||{})[plant] || 0;
-              const sb = ((stylePlant4w||{})[b[0]]||{})[plant] || 0;
-              return sb - sa;
-            });
-
-          for (const [mat, info] of carryStylesMc4) {
-            if (mcNeed <= 0) break;
-            if ((remaining[mat]||0) <= 0) continue;
-            if (storeAlloc.has(mat)) continue;  // v8 fix(2026-06-05): 같은 매장에 같은 SKU 또 보내지 않음
-            const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
-            if (alloc <= 0) continue;
-
-            const smP = refillSeasonMonth(info);
-            const wm  = weatherMult(info.season, weather);
-            reactResults.push({
-              mat, plant, qty: alloc, cat, dist_type: 'react',
-              name: info.name, avg_price: info.avg_price,
-              store_name: storeName, season: info.season,
-              season_month: info.season_month, season_month_label: smP.label,
-              weather_mult: wm,
-              optimal_stock: disp,
-              current_stock: Math.round(cur),
-              avail_qty: info.total_qty, is_similar: false,
-              mc: info.mc, brand: info.brand || '', brand_name: info.brand_name || '',
-              velocity_tier: '판매보충',
-              sales_velocity: 0,
-            });
-            remaining[mat] = (remaining[mat]||0) - alloc;
-            storeAlloc.add(mat);
-            mcNeed -= alloc;
-            allocCarry += alloc;
-          }
-        }
-
-        // ── 3순위: 유사스타일 (이월SS도 부족 시) ──
-        // ★ inv[mat] 의존성 제거: availStock 정보 활용
-        if (mcNeed > 0) {
-          for (const [mat, origInfo] of carryStyles) {
-            if (mcNeed <= 0) break;
-            if ((remaining[mat]||0) > 0) continue;
-            // findSimilar는 inv를 인자로 받지만 매장에 없는 신상도 매칭하려면 inv에 폴백 필요
-            // 안전하게 fallback 객체 구성
-            const fallbackInv = inv[mat] || {
-              name: origInfo.name, mc: origInfo.mc, mch2: origInfo.mch2,
-              cat: cat, brand: origInfo.brand, brand_name: origInfo.brand_name || '',
-              avg_price: origInfo.avg_price, init_price: origInfo.avg_price, cur_price: origInfo.avg_price,
-              season: origInfo.season, season_month: origInfo.season_month,
-              size: '', color: '',
-            };
-            const simStyle = findSimilar(mat, fallbackInv, inv, PRICE_RANGE, remaining, similarIdx, plant, stylePlant4w, mcStorePlant, simUsage, SIM_MAX_USE);
-            if (!simStyle) continue;
-            const simAvail = availStock[simStyle.mat];
-            if (!simAvail || simAvail.cell !== cat || !isDistSeason(simAvail.season, simAvail.brand_name)) continue;   // v8 fix(2026-10-11): 분배 시즌(DIST_SEASON) + 시즌리스 + 시즌 무관 브랜드 통과
-            if ((remaining[simStyle.mat]||0) <= 0) continue;
-            if (storeAlloc.has(simStyle.mat)) continue;  // v8 fix(2026-06-05): 유사스타일도 매장당 중복 차단
-
-            const simQty = Math.min(BASE_QTY, MAX_PER_SKU, remaining[simStyle.mat]||0, mcNeed);
-            if (simQty <= 0) continue;
-
-            similar.push({
-              orig_mat: mat, orig_name: origInfo.name,
-              sim_mat: simStyle.mat, sim_name: simStyle.name,
-              cat, plant, store_name: storeName,
-              match_label: simStyle.matchLabel, reason: '재고 부족 유사스타일 대체'
-            });
-            const simInv = inv[simStyle.mat] || simAvail || {};
-            reactResults.push({
-              mat: simStyle.mat, plant, qty: simQty, cat, dist_type: 'react',
-              name: simStyle.name, avg_price: simStyle.avg_price,
-              store_name: storeName, season: simStyle.season,
-              season_month: simStyle.season_month, season_month_label: '유사스타일',
-              weather_mult: 1.0, optimal_stock: disp,
-              current_stock: Math.round(cur),
-              avail_qty: simAvail.total_qty,
-              is_similar: true,
-              mc: simInv.mc || simAvail.mc || '', brand: simInv.brand || simAvail.brand || '', brand_name: simInv.brand_name || simAvail.brand_name || '',
-              velocity_tier: '유사스타일',
-              sales_velocity: 0,
-            });
-            remaining[simStyle.mat] = (remaining[simStyle.mat]||0) - simQty;
-            storeAlloc.add(simStyle.mat);
-            simUsage[simStyle.mat] = (simUsage[simStyle.mat]||0) + 1; // 쏠림 카운트
-            mcNeed -= simQty;
-            allocSim += simQty;
-          }
-        }
-
-        // ── 4순위: SS 필업 (2026-11-02 지니 "FW 먼저" — FW 이월·MC4·유사스타일로 못 채운 자리만, 동일 MC) ──
-        if (mcNeed > 0 && REFILL_EXTRA_SEASONS.length) {
-          const ssStyles = Object.entries(availStock)
-            .filter(([mat, info]) => {
-              if (info.is_new) return false;            // SS 는 초도로 보내지 않음
-              if (info.cell !== cat) return false;
-              if (!REFILL_EXTRA_SEASONS.includes(info.season)) return false;
-              if (info.mc !== mc) return false;
-              if ((remaining[mat]||0) <= 0) return false;
-              return true;
-            })
-            .sort((a,b) => {
-              const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
-              const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
-              if (bb !== ba) return bb - ba;
-              const sa = ((stylePlant4w||{})[a[0]]||{})[plant] || 0;
-              const sb = ((stylePlant4w||{})[b[0]]||{})[plant] || 0;
-              return sb - sa;
-            });
-          for (const [mat, info] of ssStyles) {
-            if (mcNeed <= 0) break;
-            if ((remaining[mat]||0) <= 0) continue;
-            if (storeAlloc.has(mat)) continue;
-            const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
-            if (alloc <= 0) continue;
-            reactResults.push({
-              mat, plant, qty: alloc, cat, dist_type: 'react',
-              name: info.name, avg_price: info.avg_price,
-              store_name: storeName, season: info.season,
-              season_month: info.season_month, season_month_label: 'SS 필업',
-              weather_mult: 1.0,
-              optimal_stock: disp,
-              current_stock: Math.round(cur),
-              avail_qty: info.total_qty, is_similar: false,
-              mc: info.mc || mc, brand: info.brand || '', brand_name: info.brand_name || '',
-              velocity_tier: 'SS 필업',
-              sales_velocity: 0,
-            });
-            remaining[mat] = (remaining[mat]||0) - alloc;
-            storeAlloc.add(mat);
-            mcNeed -= alloc;
-            allocCarry += alloc;
-          }
-        }
-        
-        // 진단: MC별 통계 누적
-        diag.mcStats.push({
-          plant: STORES[plant].name, cat, mc, demand, mcNeedOrig,
-          newAvail: newAvailMc, carryAvail: carryAvailMc,
-          allocNew, allocCarry, allocSim, leftover: mcNeed
-        });
       }
+
+      // ── 3순위: 유사스타일 (이월SS도 부족 시) ──
+      // ★ inv[mat] 의존성 제거: availStock 정보 활용
+      if (mcNeed > 0) {
+        for (const [mat, origInfo] of carryStyles) {
+          if (mcNeed <= 0) break;
+          if ((remaining[mat]||0) > 0) continue;
+          // findSimilar는 inv를 인자로 받지만 매장에 없는 신상도 매칭하려면 inv에 폴백 필요
+          // 안전하게 fallback 객체 구성
+          const fallbackInv = inv[mat] || {
+            name: origInfo.name, mc: origInfo.mc, mch2: origInfo.mch2,
+            cat: cat, brand: origInfo.brand, brand_name: origInfo.brand_name || '',
+            avg_price: origInfo.avg_price, init_price: origInfo.avg_price, cur_price: origInfo.avg_price,
+            season: origInfo.season, season_month: origInfo.season_month,
+            size: '', color: '',
+          };
+          const simStyle = findSimilar(mat, fallbackInv, inv, PRICE_RANGE, remaining, similarIdx, plant, stylePlant4w, mcStorePlant, simUsage, SIM_MAX_USE);
+          if (!simStyle) continue;
+          const simAvail = availStock[simStyle.mat];
+          if (!simAvail || simAvail.cell !== cat || !isDistSeason(simAvail.season, simAvail.brand_name)) continue;   // v8 fix(2026-10-11): 분배 시즌(DIST_SEASON) + 시즌리스 + 시즌 무관 브랜드 통과
+          if ((remaining[simStyle.mat]||0) <= 0) continue;
+          if (storeAlloc.has(simStyle.mat)) continue;  // v8 fix(2026-06-05): 유사스타일도 매장당 중복 차단
+
+          const simQty = Math.min(BASE_QTY, MAX_PER_SKU, remaining[simStyle.mat]||0, mcNeed);
+          if (simQty <= 0) continue;
+
+          similar.push({
+            orig_mat: mat, orig_name: origInfo.name,
+            sim_mat: simStyle.mat, sim_name: simStyle.name,
+            cat, plant, store_name: storeName,
+            match_label: simStyle.matchLabel, reason: '재고 부족 유사스타일 대체'
+          });
+          const simInv = inv[simStyle.mat] || simAvail || {};
+          reactResults.push({
+            mat: simStyle.mat, plant, qty: simQty, cat, dist_type: 'react',
+            name: simStyle.name, avg_price: simStyle.avg_price,
+            store_name: storeName, season: simStyle.season,
+            season_month: simStyle.season_month, season_month_label: '유사스타일',
+            weather_mult: 1.0, optimal_stock: disp,
+            current_stock: Math.round(cur),
+            avail_qty: simAvail.total_qty,
+            is_similar: true,
+            mc: simInv.mc || simAvail.mc || '', brand: simInv.brand || simAvail.brand || '', brand_name: simInv.brand_name || simAvail.brand_name || '',
+            velocity_tier: '유사스타일',
+            sales_velocity: 0,
+          });
+          remaining[simStyle.mat] = (remaining[simStyle.mat]||0) - simQty;
+          storeAlloc.add(simStyle.mat);
+          simUsage[simStyle.mat] = (simUsage[simStyle.mat]||0) + 1; // 쏠림 카운트
+          mcNeed -= simQty;
+          allocSim += simQty;
+        }
+      }
+
+      // ── 4순위: SS 필업 (2026-11-02 지니 "FW 먼저" — FW 이월·MC4·유사스타일로 못 채운 자리만, 동일 MC) ──
+      if (mcNeed > 0 && REFILL_EXTRA_SEASONS.length) {
+        const ssStyles = Object.entries(availStock)
+          .filter(([mat, info]) => {
+            if (info.is_new) return false;            // SS 는 초도로 보내지 않음
+            if (info.cell !== cat) return false;
+            if (!REFILL_EXTRA_SEASONS.includes(info.season)) return false;
+            if (info.mc !== mc) return false;
+            if ((remaining[mat]||0) <= 0) return false;
+            return true;
+          })
+          .sort((a,b) => {
+            const ba = ((brandStorePlant||{})[plant]||{})[a[1].brand_name] || 0;
+            const bb = ((brandStorePlant||{})[plant]||{})[b[1].brand_name] || 0;
+            if (bb !== ba) return bb - ba;
+            const sa = ((stylePlant4w||{})[a[0]]||{})[plant] || 0;
+            const sb = ((stylePlant4w||{})[b[0]]||{})[plant] || 0;
+            return sb - sa;
+          });
+        for (const [mat, info] of ssStyles) {
+          if (mcNeed <= 0) break;
+          if ((remaining[mat]||0) <= 0) continue;
+          if (storeAlloc.has(mat)) continue;
+          const alloc = Math.min(BASE_QTY, MAX_PER_SKU, remaining[mat]||0, mcNeed);
+          if (alloc <= 0) continue;
+          reactResults.push({
+            mat, plant, qty: alloc, cat, dist_type: 'react',
+            name: info.name, avg_price: info.avg_price,
+            store_name: storeName, season: info.season,
+            season_month: info.season_month, season_month_label: 'SS 필업',
+            weather_mult: 1.0,
+            optimal_stock: disp,
+            current_stock: Math.round(cur),
+            avail_qty: info.total_qty, is_similar: false,
+            mc: info.mc || mc, brand: info.brand || '', brand_name: info.brand_name || '',
+            velocity_tier: 'SS 필업',
+            sales_velocity: 0,
+          });
+          remaining[mat] = (remaining[mat]||0) - alloc;
+          storeAlloc.add(mat);
+          mcNeed -= alloc;
+          allocCarry += alloc;
+        }
+      }
+      
+      for (const r of [...initResults.slice(n0), ...reactResults.slice(r0)]) r.need_item = mcItem;
+
+      // 진단: MC별 통계 누적
+      diag.mcStats.push({
+        plant: STORES[plant].name, cat, mc, demand, mcNeedOrig,
+        newAvail: newAvailMc, carryAvail: carryAvailMc,
+        allocNew, allocCarry, allocSim, leftover: mcNeed
+      });
     }
   }
   
@@ -3376,6 +3496,18 @@ function periodFromDates(sortedDates, mode, cat) {
     }
   }
 }
+// 2026-11-02: 적정재고판 '주간 판매량'과 같은 기준 — 매출 파일 마지막 날까지 최근 7일, 매장×셀 합계
+function lastWeekCatSales(wb) {
+  if (!wb.__salesDates) determineSalesPeriod(wb, 'weekly', CAT_LABELS[0]);
+  const ds = wb.__salesDates || [];
+  if (!ds.length) return {start:null, end:null, byPlant:{}};
+  const end = ds[ds.length - 1];
+  const d0 = new Date(end + 'T00:00:00'); d0.setDate(d0.getDate() - 6);
+  let start = `${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,'0')}-${String(d0.getDate()).padStart(2,'0')}`;
+  if (start < ds[0]) start = ds[0];
+  const sd = extractSalesByPeriod(wb, start, end);
+  return {start, end, byPlant: sd.catStore4w || {}, byPlantMc: sd.mcStorePlant || {}};
+}
 
 
 // ── 엑셀 생성 ──────────────────────────────────────────────────────────
@@ -3426,6 +3558,23 @@ function buildExcel(results, similar) {
     const s=storeStat[plant]||{};
     const total=Object.values(s).reduce((a,b)=>a+b,0);
     storeRows.push([plant,info.name,...CAT_LABELS.map(c=>s[c]||0),total]);
+  }
+  // 2026-11-02: 매장×셀 처리 순서·부족 판정 (적정재고판 식, 진열량 = 자동분배 값)
+  const queue = (window._lastDistDiag||{}).storeQueue || [];
+  if (queue.length) {
+    storeRows.push([]);
+    storeRows.push(['■ 아이템별 부족 판정 — 순서: 강서→송파→분당→천호2→강남→나머지 / 잔여판매주차=(재고−진열량)÷주간판매 / 권장 주간분배=진열량+2×주간판매−재고(최대 주간판매×2) / 아이템 진열량=8/21 점별 취합(아이템 없이 적힌 몫은 주간판매 비중으로 나눔)']);
+    storeRows.push(['처리순서','플랜트','매장명','셀','아이템','진열량','현재재고','주간판매(7일)','잔여판매주차','신호등','권장 주간분배','배정수량']);
+    const byItem = {};
+    for (const r of results) { const k = r.plant+'|'+r.cat+'|'+(r.need_item||'기타'); byItem[k] = (byItem[k]||0) + getAdjustedQty(r.mat, r.plant, r.qty); }
+    queue.forEach((q, i) => {
+      if (q.disp <= 0) { storeRows.push([i+1, q.plant, q.storeName, q.cat, '(진열량 없음 — 분배 안 함)']); return; }
+      const rows = q.items.filter(x => x.disp >= 0.5 || x.cur || x.week)
+        .sort((a,b) => b.recommend - a.recommend || (a.item < b.item ? -1 : 1));
+      for (const x of rows) storeRows.push([i+1, q.plant, q.storeName, q.cat, x.item, Math.round(x.disp), Math.round(x.cur), Math.round(x.week),
+        x.weeksLeft === null ? '' : Math.round(x.weeksLeft*10)/10, weeksSignal(x.weeksLeft),
+        Math.max(0, Math.round(x.recommend)), byItem[q.plant+'|'+q.cat+'|'+x.item]||0]);
+    });
   }
   const ws4=XLSX.utils.aoa_to_sheet(storeRows);
   XLSX.utils.book_append_sheet(wb,ws4,'매장별현황');
@@ -3575,6 +3724,9 @@ async function runDistribution() {
     // - 주2회: 마지막 분배일 다음날 ~ D-1
     // - 데일리: D-1 (월요일이면 금/토/일 3일치)
     // 옵션 3: 활성화 시 보정 로직으로 mcStorePlant 직접 생성
+    // 2026-11-02: 부족 판정·권장 주간분배용 주간 판매(최근 7일, 매장×셀)
+    const weekCat = lastWeekCatSales(wbSales);
+    log(`// 주간 판매(부족 판정): ${weekCat.start||'-'} ~ ${weekCat.end||'-'}`,'info');
     const opt3On = document.getElementById('cfg-opt3-on')?.checked;
     if (opt3On) {
       // UI에서 설정값 수집
@@ -3614,6 +3766,8 @@ async function runDistribution() {
           // 기존 salesData를 옵션3 결과로 교체 (mcStorePlant만)
           // 다른 필드(sales, recentSales, catStore4w 등)는 parseSales 결과 유지
           salesData.mcStorePlant = opt3Result.mcStorePlant;
+          salesData.catStoreWeek = weekCat.byPlant;
+          salesData.mcStoreWeek = weekCat.byPlantMc;
           
           // 분배 합계 미리 계산해서 로그
           let total = 0;
@@ -3656,6 +3810,8 @@ async function runDistribution() {
       const cs = buildCatSales(wbSales, plantsByMode, appSettings.selectedCats);
       if (cs.base) salesData = cs.base;
       salesData.mcStorePlant = cs.mcStorePlant;
+      salesData.catStoreWeek = weekCat.byPlant;
+      salesData.mcStoreWeek = weekCat.byPlantMc;
       window._catPeriods = cs.periods;
 
       const totalMcQty = Object.values(cs.mcStorePlant).reduce((s, mcs) => s + Object.values(mcs).reduce((a,b)=>a+b, 0), 0);
