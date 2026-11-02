@@ -619,6 +619,8 @@ async function runDistribution(){
     if(!isInit&&tot===0)log('※ 배정 0개 — 마지막 분배일은 저장하지 않았습니다 (2026-10-22)','warn');if(!isInit&&tot>0){setLastDist(dt,distDate);log('마지막 분배일 저장: '+distDate+' ('+dt+') — 다음 분배는 이 날(당일 매출)부터 누적','info');}
     renderResult();showPanel('result',null);document.getElementById('nav-result').classList.add('active');document.getElementById('nav-dist').classList.remove('active');
     log('완료 — 결과 탭으로 이동','ok');
+    // 2026-11-02 지니: 분배 끝나면 분배장 엑셀 바로 받기 (직영과 같게). 0건이면 안 받음
+    if(result.results.length){try{downloadExcel();log('엑셀 다운로드: '+document.getElementById('dl-name').textContent,'ok');}catch(e){log('엑셀 자동 다운로드 실패 — [엑셀 다운로드] 버튼을 눌러 주세요 ('+e.message+')','warn');}}
   }catch(e){console.error(e);showError('오류: '+e.message);log('오류: '+e.message,'err');}
   finally{btn.disabled=false;document.getElementById('spinner').classList.remove('show');document.getElementById('btn-text').textContent='분배 실행';updateReady();}
 }
