@@ -1820,6 +1820,18 @@ function readXLSX(file) {
 function sheetToRows(ws) {
   return XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
 }
+// 셀 날짜(글자·Date·엑셀 일련번호) → 'YYYY-MM-DD' (2026-11-09, 가용재고 '최종재고반입'용)
+function ymdOf(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`; }
+  if (/^\d{5}(\.\d+)?$/.test(s)) { const d = new Date(Date.UTC(1899,11,30) + parseFloat(s)*86400000); return d.toISOString().slice(0,10); }
+  return '';
+}
 
 // ── 공통: 헤더 자동 탐색 (이름 기반, 위치 의존 없음) ──
 // rows에서 헤더 행 찾고, 각 키워드로 컬럼 인덱스 매핑 반환
@@ -1967,6 +1979,14 @@ function refillSeasonMonth(info) {
 // 2026-11-02 지니: 매장 처리 순서 = 강서 → 송파 → 분당 → 천호2 → 강남 (물류 재고가 모자라면 앞 매장부터 채움)
 //   목록에 없는 매장은 그 뒤에 Object.keys(STORES) 순서 = 플랜트 코드 순 (불광→동수원→순천→수원터미널)
 const STORE_PRIORITY = ['8227','8224','7209','7215','8206'];
+// 2026-11-09 잡화 신규 입고 내보내기 (10/22 수기 잡화 분배 역추적, 지니 '규칙 1~3만')
+const JAPHWA_PUSH = true;
+const JAPHWA_PUSH_DAYS = 21;   // 최근 3주 물류 입고분 (10/22 수기 = 10/1~10/22 입고가 79%)
+const JAPHWA_PUSH_BANDS = [    // 가용 수량 → 보낼 점포 수·비율 (수기 실측 중앙값)
+  {max:4, stores:1, ratio:1.00}, {max:9, stores:2, ratio:0.82}, {max:29, stores:3, ratio:0.70},
+  {max:99, stores:5, ratio:0.37}, {max:Infinity, stores:6, ratio:0.14}];
+// 수기 매장 순서 (10/22 수기 비중 순: 강서 26%·분당 14%·송파 13%·수원터미널 10%·강남·천호2 10%·동수원 6%·불광 3%·신구로·산본 3%·유성·중앙로역·중계 <1%·순천 0)
+const JAPHWA_PUSH_ORDER = ['8227','7209','8224','8237','8206','7215','8208','7217','8242','8215','8243','8235','7204','8212'];
 function storeRank(plant) {
   const i = STORE_PRIORITY.indexOf(plant);
   if (i >= 0) return i;
@@ -2359,6 +2379,7 @@ function parseAvailableStock(wb) {
   const iQty     = h.findIndex(v => String(v||'').includes('가용 수량') || String(v||'').includes('가용수량'));
   const iName    = h.findIndex(v => String(v||'').includes('자재내역'));
   const iLastOut = h.findIndex(v => String(v||'').includes('최종재고반출'));
+  const iLastIn  = h.findIndex(v => String(v||'').includes('최종재고반입'));   // 2026-11-09 잡화 신규 입고 내보내기용
   const iPrice   = h.findIndex(v => String(v||'').includes('이동평균가'));
   const iSeason  = h.findIndex(v => String(v||'').includes('시즌 연도') || String(v||'').includes('시즌연도'));
   const iSeasonM = h.findIndex(v => String(v||'').trim() === '계절');
@@ -2423,9 +2444,11 @@ function parseAvailableStock(wb) {
         season_month: seasonMonth,
         brand: brandRaw,
         brand_name: brandNameRaw,
+        last_in: '',
       };
     }
     avail[style].total_qty += qty;
+    { const li = ymdOf(iLastIn >= 0 ? r[iLastIn] : null); if (li > (avail[style].last_in || '')) avail[style].last_in = li; }
     if (!isNew) avail[style].is_new = false;
   }
   
@@ -2685,6 +2708,7 @@ function distribute(inv, salesData, availStock, weather) {
     const storeName = STORES[plant].name;
     for (const cat of CAT_LABELS) {
       if (cat === '아동') continue;                      // 아동 분배 제외
+      if (cat === '잡화' && JAPHWA_PUSH) continue;      // 2026-11-09 잡화는 아래 '신규 입고 내보내기'(수기 규칙)
       if (!(appSettings.selectedCats||DIST_CATS).includes(cat)) continue;  // v8 fix(2026-10-11): 선택한 카테고리만
       const disp = displayQty[storeName+'__'+cat] || 0;
       const cur  = (storeCatQty[plant]||{})[cat] || 0;
@@ -3050,6 +3074,54 @@ function distribute(inv, salesData, availStock, weather) {
     }
   }
   
+  // ══ 잡화 = 신규 입고 내보내기 (2026-11-09 지니: 10/22 수기 잡화 분배를 역추적한 규칙 1~3만) ══
+  //   ① 최근 JAPHWA_PUSH_DAYS일 안에 물류에 들어온(최종재고반입) 2026 시즌↑ 잡화 — 수기 물량 79%가 그달 입고분
+  //   ② 가용 수량 구간 → 보낼 점포 수·보낼 비율 (수기 실측: 1~4장 1개점 100% / 5~9 2개점 82% / 10~29 3개점 70% / 30~99 5개점 37% / 100↑ 6개점 14%)
+  //   ③ 점포는 수기 매장 순서대로 (판매 비중과 다름: 강서→분당→송파→수원터미널→강남→천호2→동수원→불광→직영 외)
+  //   브랜드·상품 고르기(수기는 10월 입고 잡화의 25%만 고름)는 담당자 기준을 받기 전까지 넣지 않음 — 그래서 수기보다 많이 나감
+  if (JAPHWA_PUSH && (appSettings.selectedCats||DIST_CATS).includes('잡화')) {
+    const sel = new Set(_selectedStores);
+    const order = JAPHWA_PUSH_ORDER.filter(p => sel.has(p) && STORES[p]);
+    const t0 = new Date(); t0.setDate(t0.getDate() - JAPHWA_PUSH_DAYS);
+    const since = t0.toISOString().slice(0,10);
+    let pushN = 0, pushQ = 0, noDate = 0;
+    const pool = Object.entries(availStock).filter(([mat, info]) => {
+      if (info.cell !== '잡화') return false;
+      if (!info.last_in) { noDate++; return false; }
+      if (info.last_in < since) return false;
+      if (parseInt(String(info.season_year||'').slice(0,4)) < 2026) return false;
+      return (remaining[mat]||0) > 0;
+    }).sort((a,b) => b[1].total_qty - a[1].total_qty);
+    for (const [mat, info] of pool) {
+      const av = info.total_qty || 0;
+      const band = JAPHWA_PUSH_BANDS.find(b => av <= b.max);
+      const send = Math.max(1, Math.round(av * band.ratio));
+      const per = Math.max(1, Math.floor(send / band.stores));
+      let left = Math.min(send, remaining[mat]||0), used = 0;
+      for (const plant of order) {
+        if (used >= band.stores || left <= 0) break;
+        const storeAlloc = storeAllocByPlant[plant] || (storeAllocByPlant[plant] = new Set());
+        if (storeAlloc.has(mat)) continue;
+        if ((((inv[mat]||{}).store_qty)||{})[plant] > 0) continue;   // 그 점포에 이 자재가 이미 있으면 다음 점포로 (주2회 같은 자재 반복 출고 방지)
+        const q = Math.min(per, left);
+        const smP = seasonMonthPriority(info.season_month);
+        initResults.push({
+          mat, plant, qty: q, cat: '잡화', dist_type: 'init',
+          name: info.name, avg_price: info.avg_price,
+          store_name: STORES[plant].name, season: info.season,
+          season_month: info.season_month, season_month_label: smP.label,
+          weather_mult: 1, optimal_stock: 0, current_stock: Math.round(((storeCatQty[plant]||{})['잡화'])||0),
+          avail_qty: av, is_similar: false,
+          mc: info.mc, brand: info.brand || '', brand_name: info.brand_name || '',
+          need_item: '잡화 신규입고', last_in: info.last_in,
+        });
+        remaining[mat] = (remaining[mat]||0) - q; storeAlloc.add(mat);
+        left -= q; used++; pushN++; pushQ += q;
+      }
+    }
+    if (typeof log === 'function') log(`[잡화 신규입고] ${since} 이후 물류 입고·2026시즌↑ 자재 ${pool.length}개 → ${pushN}줄 ${pushQ}장 (입고일 없는 자재 ${noDate}개 제외)`, 'info');
+  }
+
   // 진단 결과 (window 전역에 저장 — 콘솔에서 window._lastDistDiag로 확인 가능)
   const sumByCat = {};
   for (const s of diag.mcStats) {
