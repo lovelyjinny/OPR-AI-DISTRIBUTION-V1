@@ -1120,6 +1120,13 @@ let STORES = {
   '8237':{name:'수원터미널점',cats:CAT_LABELS,mode:'weekly'},
   '8208':{name:'동수원점',cats:CAT_LABELS,mode:'weekly'},
   '8212':{name:'순천점',cats:CAT_LABELS,mode:'weekly'},
+  // 2026-11-09 지니 '점포 범위' 결정: 직영 외 5개점도 자동분배 대상 (10/22 잡화 수기 분배 323장 나간 곳)
+  //   direct:false = 직영 외 → 처리 순서는 직영 뒤. 산본은 8/21 진열량 취합에 없어 진열량을 넣기 전까지 분배 0
+  '7204':{name:'중계점',cats:CAT_LABELS,mode:'weekly',direct:false},
+  '8215':{name:'산본점',cats:CAT_LABELS,mode:'weekly',direct:false},
+  '8235':{name:'중앙로역점',cats:CAT_LABELS,mode:'weekly',direct:false},
+  '8242':{name:'신구로점',cats:CAT_LABELS,mode:'weekly',direct:false},
+  '8243':{name:'NC대전 유성점',cats:CAT_LABELS,mode:'weekly',direct:false},
 };
 
 const files = {inv:null, inv2:null, inv3:null, sales:null, avail:null, avail2:null, quota:null};
@@ -1140,6 +1147,11 @@ let displayQty = {
   '불광점__여성':2780, '불광점__남성':3000, '불광점__잡화':300,
   '수원터미널점__여성':1700, '수원터미널점__남성':2350, '수원터미널점__잡화':1130,
   '동수원점__여성':3070, '동수원점__남성':4350, '동수원점__잡화':1115,
+  // 직영 외 4개점 (2026-11-09, 같은 8/21 취합 · 산본 없음)
+  '중계점__여성':2118, '중계점__남성':1680, '중계점__잡화':168,
+  '중앙로역점__여성':630, '중앙로역점__남성':1260, '중앙로역점__잡화':360,
+  '신구로점__여성':1648, '신구로점__남성':1669, '신구로점__잡화':446,
+  'NC대전 유성점__여성':800, 'NC대전 유성점__남성':1920, 'NC대전 유성점__잡화':500,
 };
 let customStores = [];
 
@@ -1259,6 +1271,14 @@ function loadSettings() {
       for (const k of Object.keys(saved)) {
         if (STORES[k]) Object.assign(STORES[k], saved[k]);
       }
+    }
+    // 2026-11-09 직영 외 5개점 추가: 예전에 저장한 매장 선택에는 새 매장이 없어서 한 번만 넣어 준다
+    const STORE_SET_VER = '1109';
+    if (localStorage.getItem('opr_store_set_ver') !== STORE_SET_VER) {
+      const nw = Object.keys(STORES).filter(p => STORES[p].direct === false);
+      if (Array.isArray(appSettings.selectedStores) && appSettings.selectedStores.length)
+        nw.forEach(p => { if (!appSettings.selectedStores.includes(p)) appSettings.selectedStores.push(p); });
+      localStorage.setItem('opr_store_set_ver', STORE_SET_VER);
     }
   } catch(e){}
 }
@@ -1949,7 +1969,10 @@ function refillSeasonMonth(info) {
 const STORE_PRIORITY = ['8227','8224','7209','7215','8206'];
 function storeRank(plant) {
   const i = STORE_PRIORITY.indexOf(plant);
-  return i >= 0 ? i : STORE_PRIORITY.length + Object.keys(STORES).indexOf(plant);
+  if (i >= 0) return i;
+  // 2026-11-09: 직영 외(direct:false)는 직영 뒤 — 직영 외끼리 순서는 아직 안 정함(플랜트 코드 순)
+  const n = Object.keys(STORES).length;
+  return STORE_PRIORITY.length + (STORES[plant] && STORES[plant].direct === false ? n : 0) + Object.keys(STORES).indexOf(plant);
 }
 // 적정재고판 신호등 — 잔여판매주차 = (재고 − 진열량) ÷ 주간 판매
 function weeksSignal(w) {
@@ -1993,6 +2016,16 @@ function itemOf(cell, mc) {
 // 8/21 점별 진열량 취합의 매장×셀×아이템 값 (진열량.json br_item, displayQty 와 같은 자료 · DISPLAY_QTY_VER)
 //   셀 진열량 − 아이템 합 = 아이템 없이 적힌 몫('상의'·'바지' 등) → 그 매장 아이템별 주간판매 비중으로 나눠 붙임 (매장판과 같은 규칙, 지니 08-25)
 const DISPLAY_ITEM = {
+  // 직영 외 4개점 (2026-11-09) — 중앙로역은 아이템 기재 없음(셀 진열량만)
+  "NC대전 유성점__남성":{"신발": 320, "아우터": 10, "쟈켓/점퍼": 10, "후드티/후드집업": 860},
+  "NC대전 유성점__여성":{"블라우스": 40, "셔츠": 20, "스웨터": 80, "스커트": 210, "원피스": 80, "점퍼": 50, "코트": 10},
+  "NC대전 유성점__잡화":{"가방": 210, "모자": 160, "언더웨어": 130},
+  "신구로점__남성":{"긴팔": 307, "니트": 108, "반팔": 373, "신발": 400, "쟈켓/점퍼": 53, "후드티/후드집업": 225},
+  "신구로점__여성":{"긴팔티": 118, "반바지": 47, "반팔티": 70, "블라우스": 131, "셔츠": 112, "스웨터": 92, "스커트": 296, "원피스": 148, "청바지": 97},
+  "신구로점__잡화":{"가방": 120, "모자": 150, "언더웨어": 176},
+  "중계점__남성":{"가디건": 50, "쟈켓/점퍼": 230},
+  "중계점__여성":{"가디건": 10, "민소매": 540, "스커트": 35, "원피스": 575, "점퍼": 10, "퍼/무스탕": 168},
+  "중계점__잡화":{"언더웨어": 168},
   "천호2점__남성":{"PQ티셔츠": 349, "가디건": 210, "니트": 411, "맨투맨": 324, "반바지": 62, "반팔": 385, "베스트": 42, "셔츠": 254, "신발": 665, "아우터": 168, "쟈켓/점퍼": 398, "정장/셋업": 20, "청바지": 281, "후드티/후드집업": 540},
   "천호2점__여성":{"가디건": 200, "긴팔티": 49, "반바지": 50, "반팔티": 49, "블라우스": 40, "셔츠": 100, "스웨터": 457, "스커트": 599, "원피스": 617, "자켓": 209, "점퍼": 270, "조끼": 257, "청바지": 330, "후드집업": 15, "후드티": 64},
   "천호2점__잡화":{"ACC": 118, "가방": 958, "머플러": 40, "모자": 390, "벨트": 8, "언더웨어": 173, "지갑": 8, "홈웨어": 105},
